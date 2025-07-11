@@ -269,6 +269,9 @@ Process {
     $Page    = (Get-MWPage -Wikitext -ID   $ID)
   }
 
+  # Extract the namespace name from the page name
+  $Page | Add-Member -MemberType NoteProperty -Name 'Namespace' -Value (Get-MWNamespace -PageName $Page.Name).Name
+
   if ($null -ne $Page.Wikitext)
   {
     $OriginalContent     = $null
@@ -442,7 +445,7 @@ Process {
       # Only do on articles in the main namespace
 
       # Requires retrieving the date through the Cargo backend (admittedly easier than trying to parse it manually)
-      $ReleaseDate = Get-MWCargoQuery -Table Infobox_game -Field 'Released' -Where ('_pageID = ' + $Change.ID) -Limit 1
+      $ReleaseDate = Get-MWCargoQuery -Table Infobox_game -Field 'Released' -Where ('_pageID = ' + $Page.ID) -Limit 1
 
       if (-not ([string]::IsNullOrEmpty($ReleaseDate.Released)))
       {
