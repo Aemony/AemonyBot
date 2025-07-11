@@ -110,9 +110,9 @@ if (-not (Get-MWSession))
 }
 
 # A publicly accessible toggle for the bot
-$Status = Get-MWPage -Name $script:EnablePage -WikiText
+$Status = Get-MWPage -Name $script:EnablePage -Wikitext
 
-if ($Force -or $Status.Content -eq '1')
+if ($Force -or $Status.Wikitext -eq '1')
 {
   $MWRecentChangesParameters = @{
     ExcludeUser    = $ExcludeUser
@@ -151,8 +151,8 @@ if ($Force -or $Status.Content -eq '1')
     { $Cache | Select-Object RecentChangesID, Timestamp | ConvertTo-Json | Out-File $script:CacheFilePath }
     
     # Check the status after each processed page
-    $Status = Get-MWPage -Name $script:EnablePage -WikiText
-    if ($Force -eq $false -and $Status.Content -ne '1')
+    $Status = Get-MWPage -Name $script:EnablePage -Wikitext
+    if ($Force -eq $false -and $Status.Wikitext -ne '1')
     {
       # .Timestamp is only accessible when doing an additional API request with the -Information switch, so use .Retrieved instead
       Write-Warning "Bot has aborted as per the contents of $($Status.Name), retrieved $($Status.Retrieved)."

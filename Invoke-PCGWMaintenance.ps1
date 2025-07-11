@@ -264,19 +264,19 @@ Process {
   $Page = $null
   # Use Get-MWPage cuz we want RevisionID and Timestamp
   if ($PSBoundParameters.ContainsKey('Name')) {
-    $Page    = (Get-MWPage -WikiText -Name $Name)
+    $Page    = (Get-MWPage -Wikitext -Name $Name)
   } elseif ($PSBoundParameters.ContainsKey('ID')) {
-    $Page    = (Get-MWPage -WikiText -ID   $ID)
+    $Page    = (Get-MWPage -Wikitext -ID   $ID)
   }
 
-  if ($null -ne $Page.Content)
+  if ($null -ne $Page.Wikitext)
   {
     $OriginalContent     = $null
-    $OriginalContent     = $Page.Content
+    $OriginalContent     = $Page.Wikitext
 
     $IsGame = $false
-    if ($Page.Content -like "*{{Infobox game`n*"  -or
-        $Page.Content -like "*{{Infobox game|`n*")
+    if ($Page.Wikitext -like "*{{Infobox game`n*"  -or
+        $Page.Wikitext -like "*{{Infobox game|`n*")
     {
       $IsGame = $true
     }
@@ -329,17 +329,17 @@ Process {
 
 #region Date References
     # Convert |March 25, 2025<ref> to |March 25, 2025|<ref>
-    $Before       = $Page.Content
-    while ($Page.Content -match '\{\{Infobox game\/row\/date\|(.+?)\|([\w-\s,]*)\<ref')
+    $Before       = $Page.Wikitext
+    while ($Page.Wikitext -match '\{\{Infobox game\/row\/date\|(.+?)\|([\w-\s,]*)\<ref')
     {
       $Section = $Matches[0].Clone()
       $OS      = $Matches[1].Trim()
       $OSDate  = $Matches[2].Trim()
 
       $Replacement  = "{{Infobox game/row/date|$OS|$OSDate|ref=<ref"
-      $Page.Content = $Page.Content.Replace($Section, $Replacement)
+      $Page.Wikitext = $Page.Wikitext.Replace($Section, $Replacement)
     }
-    if ($Before -cne $Page.Content)
+    if ($Before -cne $Page.Wikitext)
     {
       $Summary += ' ~syntax'
     }
@@ -347,8 +347,8 @@ Process {
 
 #region ReferenceFix #1
     # Convert <ref>[link title]</ref> to {{Refurl}}
-    $Before       = $Page.Content
-    while ($Page.Content -match "\<ref\>\[(http(?:s):\/\/[\w\/\^\~\*'@&\+$%#\?=;:._\(\)\-]+?)\s+(.*?)\]\<\/ref>")
+    $Before       = $Page.Wikitext
+    while ($Page.Wikitext -match "\<ref\>\[(http(?:s):\/\/[\w\/\^\~\*'@&\+$%#\?=;:._\(\)\-]+?)\s+(.*?)\]\<\/ref>")
     {
       $Section  = $Matches[0].Clone()
       $Link     = $Matches[1].Trim()
@@ -362,9 +362,9 @@ Process {
 
       # Swap in the replacements
       $Replacement  = "<ref>{{Refurl|url=$Link|title=$Title|date=$LinkDate}}</ref>"
-      $Page.Content = $Page.Content.Replace($Section, $Replacement)
+      $Page.Wikitext = $Page.Wikitext.Replace($Section, $Replacement)
     }
-    if ($Before -cne $Page.Content -and $Summary -notlike "*~refurl*")
+    if ($Before -cne $Page.Wikitext -and $Summary -notlike "*~refurl*")
     {
       $Summary += ' ~refurl'
     }
@@ -372,8 +372,8 @@ Process {
 
 #region ReferenceFix #2
     # Convert <ref>[link]</ref> to {{Refurl}}
-    $Before       = $Page.Content
-    while ($Page.Content -match "\<ref\>\[(http(?:s):\/\/[\w\/\^\~\*'@&\+$%#\?=;:._\(\)\-]+?)\]\<\/ref>")
+    $Before       = $Page.Wikitext
+    while ($Page.Wikitext -match "\<ref\>\[(http(?:s):\/\/[\w\/\^\~\*'@&\+$%#\?=;:._\(\)\-]+?)\]\<\/ref>")
     {
       $Section  = $Matches[0].Clone()
       $Link     = $Matches[1].Trim()
@@ -387,9 +387,9 @@ Process {
 
       # Swap in the replacements
       $Replacement  = "<ref>{{Refurl|url=$Link|title=$Title|date=$LinkDate}}</ref>"
-      $Page.Content = $Page.Content.Replace($Section, $Replacement)
+      $Page.Wikitext = $Page.Wikitext.Replace($Section, $Replacement)
     }
-    if ($Before -cne $Page.Content -and $Summary -notlike "*~refurl*")
+    if ($Before -cne $Page.Wikitext -and $Summary -notlike "*~refurl*")
     {
       $Summary += ' ~refurl'
     }
@@ -397,8 +397,8 @@ Process {
 
 #region ReferenceFix #3
     # Convert <ref>link</ref> to {{Refurl}}
-    $Before       = $Page.Content
-    while ($Page.Content -match '\<ref\>(http(?:s):\/\/.+?)\<\/ref>')
+    $Before       = $Page.Wikitext
+    while ($Page.Wikitext -match '\<ref\>(http(?:s):\/\/.+?)\<\/ref>')
     {
       $Section  = $Matches[0].Clone()
       $Link     = $Matches[1].Trim()
@@ -412,24 +412,24 @@ Process {
 
       # Swap in the replacements
       $Replacement  = "<ref>{{Refurl|url=$Link|title=$Title|date=$LinkDate}}</ref>"
-      $Page.Content = $Page.Content.Replace($Section, $Replacement)
+      $Page.Wikitext = $Page.Wikitext.Replace($Section, $Replacement)
     }
-    if ($Before -cne $Page.Content -and $Summary -notlike "*~refurl*")
+    if ($Before -cne $Page.Wikitext -and $Summary -notlike "*~refurl*")
     {
       $Summary += ' ~refurl'
     }
 #endregion
 
 #region StrategyWiki
-    if ($Page.Content -match '\|strategywiki\s+=(.+)\n')
+    if ($Page.Wikitext -match '\|strategywiki\s+=(.+)\n')
     {
       # $Matches[0] holds the full match
       # $Matches[1] holds the capture group
-      $Before       = $Page.Content
+      $Before       = $Page.Wikitext
       $Link         = $Matches[1].Trim()
       $Replacement  = $Matches[0] -replace $Link, ($Link -replace '_', ' ')
-      $Page.Content = $Page.Content.Replace($Matches[0], $Replacement)
-      if ($Before -cne $Page.Content)
+      $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Replacement)
+      if ($Before -cne $Page.Wikitext)
       {
         $Summary += ' ~strategywiki'
       }
@@ -463,9 +463,9 @@ Process {
 
           if ($FirstRelease -lt $LastYear)
           {
-            $Before       = $Page.Content
-            $Page.Content = $Page.Content.Replace("`n{{DLC|`n<!-- DLC rows goes below: -->`n`n}}`n", '')
-            if ($Before -cne $Page.Content)
+            $Before       = $Page.Wikitext
+            $Page.Wikitext = $Page.Wikitext.Replace("`n{{DLC|`n<!-- DLC rows goes below: -->`n`n}}`n", '')
+            if ($Before -cne $Page.Wikitext)
             {
               $Summary += ' -DLCs'
             }
@@ -479,23 +479,23 @@ Process {
     #  then after the key points have been handled, we run it again but silently.
 
 #region Newlines
-    $Before       = $Page.Content
+    $Before       = $Page.Wikitext
     # Trim multiple newlines, e.g. \n\n\n -> \n\n
-    $Page.Content = $Page.Content -replace "(`r?`n){3,}", "`n`n" # $([Environment]::Newline)$([Environment]::Newline)
+    $Page.Wikitext = $Page.Wikitext -replace "(`r?`n){3,}", "`n`n" # $([Environment]::Newline)$([Environment]::Newline)
     # Trim newlines following a parameter, e.g. |current state[...]\n\n<here there be content>
-    $Page.Content = $Page.Content -replace '(\|[\w\s]*[\s]*=[\s]\n)\n([^\|])', '$1$2'
+    $Page.Wikitext = $Page.Wikitext -replace '(\|[\w\s]*[\s]*=[\s]\n)\n([^\|])', '$1$2'
 
-    if ($Before -cne $Page.Content)
+    if ($Before -cne $Page.Wikitext)
     {
       $Summary += ' -newlines'
     }
 #endregion
 
 #region Key Points
-    $Before       = $Page.Content
+    $Before       = $Page.Wikitext
     # Restrict changes to game pages for now
     # TODO: FIX OTHER PAGE TYPES AS WELL!!!
-    if ($IsGame -and $Page.Content -match "\n((?:['=]){1,4}Key points(?:['=]){1,4})\n(.|\s)*?(?=(?:\n'''General information'''|\n==Availability==|\{\{introduction|\|release history|\|current state|\n\n))")
+    if ($IsGame -and $Page.Wikitext -match "\n((?:['=]){1,4}Key points(?:['=]){1,4})\n(.|\s)*?(?=(?:\n'''General information'''|\n==Availability==|\{\{introduction|\|release history|\|current state|\n\n))")
     {
       Write-Verbose 'Page has Key Points...'
 
@@ -510,10 +510,10 @@ Process {
       $KeyPointsTrim = ($KeyPointsBlock.Replace($Header, '') -replace '\{\{[im+\-]{2}\}\}[\s]*', "`n").Trim()
 
       # Let us begin by clearing the data entirely from its current position on the page...
-      $Page.Content = $Page.Content.Replace($KeyPointsBlock, "`n`n") # Remove the whole Key Point block with newlines. Any unnecessary newlines will be cleared up further down
+      $Page.Wikitext = $Page.Wikitext.Replace($KeyPointsBlock, "`n`n") # Remove the whole Key Point block with newlines. Any unnecessary newlines will be cleared up further down
 
       # Does the page have a 'current state' section ?
-      if ($Page.Content -match "\|current state(.|\s)*?(?=(\n'''General information'''|\n==Availability==)\n)")
+      if ($Page.Wikitext -match "\|current state(.|\s)*?(?=(\n'''General information'''|\n==Availability==)\n)")
       {
         # $Matches[0] holds the full match
 
@@ -528,13 +528,13 @@ Process {
         $Replacement  = $ContentBlock -replace "(.*)$Target(.*)", "`$1$NewSection`$2"
 
         # Insert the key points at the bottom of the current state section
-        $Page.Content = $Page.Content.Replace($ContentBlock, $Replacement)
+        $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
       }
       
       # No 'current state' detected, so we need to create it!
       else {
         # Does the article have an release history section at least ?
-        if ($Page.Content -match "\|release history(.|\s)*?(?=(\n'''General information'''|\n==Availability==)\n)")
+        if ($Page.Wikitext -match "\|release history(.|\s)*?(?=(\n'''General information'''|\n==Availability==)\n)")
         {
           # $Matches[0] holds the full match
 
@@ -547,11 +547,11 @@ Process {
           $Replacement  = $ContentBlock -replace "(.*)$Target(.*)", "`$1$NewSection`$2"
 
           # Insert the key points at the bottom of the current state section
-          $Page.Content = $Page.Content.Replace($ContentBlock, $Replacement)
+          $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
         }
 
         # Does the article have an release history section at least ?
-        elseif ($Page.Content -match "\|introduction(.|\s)*?(?=(\n'''General information'''|\n==Availability==)\n)")
+        elseif ($Page.Wikitext -match "\|introduction(.|\s)*?(?=(\n'''General information'''|\n==Availability==)\n)")
         {
           # $Matches[0] holds the full match
 
@@ -564,12 +564,12 @@ Process {
           $Replacement  = $ContentBlock -replace "(.*)$Target(.*)", "`$1$NewSection`$2"
 
           # Insert the key points at the bottom of the current state section
-          $Page.Content = $Page.Content.Replace($ContentBlock, $Replacement)
+          $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
         }
 
         else {
           # Locate the infobox game
-          if ($Page.Content -match "{{Infobox game(.|\s)*?(?=(?:\n'''General information'''|\n==Availability==)\n)")
+          if ($Page.Wikitext -match "{{Infobox game(.|\s)*?(?=(?:\n'''General information'''|\n==Availability==)\n)")
           {
             # $Matches[0] holds the infobox game stuff in its entirety
 
@@ -581,12 +581,12 @@ Process {
             $Replacement  = $ContentBlock + $NewSection
 
             # Insert the introduction + key points at the bottom of the infobox game section
-            $Page.Content = $Page.Content.Replace($ContentBlock, $Replacement)
+            $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
           }
         }
       }
     }
-    if ($Before -cne $Page.Content)
+    if ($Before -cne $Page.Wikitext)
     {
       $Summary += ' -keypoints'
       $Tags    += $('pcgw-removed-keypoints')
@@ -594,62 +594,62 @@ Process {
 #endregion
 
 #region Newlines (quiet)
-    $Before       = $Page.Content
+    $Before       = $Page.Wikitext
     # Trim multiple newlines, e.g. \n\n\n -> \n\n
-    $Page.Content = $Page.Content -replace "(`r?`n){3,}", "`n`n" # $([Environment]::Newline)$([Environment]::Newline)
+    $Page.Wikitext = $Page.Wikitext -replace "(`r?`n){3,}", "`n`n" # $([Environment]::Newline)$([Environment]::Newline)
     # Trim newlines following a parameter, e.g. |current state[...]\n\n<here there be content>
-    $Page.Content = $Page.Content -replace '(\|[\w\s]*[\s]*=[\s]\n)\n([^\|])', '$1$2'
+    $Page.Wikitext = $Page.Wikitext -replace '(\|[\w\s]*[\s]*=[\s]\n)\n([^\|])', '$1$2'
 #endregion
 
 #region Reference Spacing
-    $Before       = $Page.Content
-    $Page.Content = $Page.Content -replace "}}(`r?`n)\{\{References}}", "}}`n`n{{References}}"
-    if ($Before -cne $Page.Content)
+    $Before       = $Page.Wikitext
+    $Page.Wikitext = $Page.Wikitext -replace "}}(`r?`n)\{\{References}}", "}}`n`n{{References}}"
+    if ($Before -cne $Page.Wikitext)
     {
       $Summary += ' +ref_newline'
     }
 #endregion
 
 #region Clean comments
-    $Before       = $Page.Content
-    $Page.Content = $Page.Content.Replace('Comment (optional)', '')
-    if ($Before -cne $Page.Content)
+    $Before       = $Page.Wikitext
+    $Page.Wikitext = $Page.Wikitext.Replace('Comment (optional)', '')
+    if ($Before -cne $Page.Wikitext)
     {
       $Summary += ' -comment'
     }
 #endregion
 
 #region Date citations
-    $Before       = $Page.Content
-    $Page.Content = $Page.Content.Replace('{{cn}}', "{{cn|date=$ThisMonth}}")
-    if ($Before -cne $Page.Content)
+    $Before       = $Page.Wikitext
+    $Page.Wikitext = $Page.Wikitext.Replace('{{cn}}', "{{cn|date=$ThisMonth}}")
+    if ($Before -cne $Page.Wikitext)
     {
       $Summary += ' ~cn'
     }
 #endregion
 
 #region Misc
-    $Before       = $Page.Content
+    $Before       = $Page.Wikitext
 
     # Change headers to lowercase
-    $Page.Content = $Page.Content.Replace('==Issues Fixed==', '==Issues fixed==')
+    $Page.Wikitext = $Page.Wikitext.Replace('==Issues Fixed==', '==Issues fixed==')
 
     # Change PAGENAME calls to the actual page name (or display title, if different)
     $ProcessedName = $Page.DisplayTitle
     if ($Page.Namespace -and $Page.DisplayTitle -ceq $Page.Name)
     { $ProcessedName = $ProcessedName.Replace(($Page.Namespace + ':'), '') }
-    $Page.Content = $Page.Content.Replace('{{PAGENAME}}', $ProcessedName)
+    $Page.Wikitext = $Page.Wikitext.Replace('{{PAGENAME}}', $ProcessedName)
 
     # Move commas before any reference that may exist
     # Regex is not well suited for this -- need a regular solution using forward find for "</ref>," and then a reverse find for "<ref>"
-    #$Page.Content = $Page.Content -replace '(<ref[^>]*\>.*?)(?=(?:<\/ref>,))', ',$1</ref>'
+    #$Page.Wikitext = $Page.Wikitext -replace '(<ref[^>]*\>.*?)(?=(?:<\/ref>,))', ',$1</ref>'
 
     # DRM-free
-    $Page.Content = $Page.Content.Replace('drm-free', 'DRM-free')
+    $Page.Wikitext = $Page.Wikitext.Replace('drm-free', 'DRM-free')
 
     
 
-    if ($Before -cne $Page.Content)
+    if ($Before -cne $Page.Wikitext)
     {
       $Summary += ' ~misc'
     }
@@ -693,7 +693,7 @@ Process {
 # --------------------------------------------------------------------------------------- #
 #region Applying...
     # If a change has been made, apply it
-    if ($OriginalContent -cne $Page.Content)
+    if ($OriginalContent -cne $Page.Wikitext)
     {
       Write-Verbose $Summary
 
@@ -702,7 +702,7 @@ Process {
         Write-Host ('What if: Performing maintenance on target "' + $Name + $ID +'".')
         $Output = $Page
       } else {
-        $Output = $Page | Set-MWPage -Bot -NoCreate -Minor -Summary $Summary -Tags $Tags -BaseRevisionID $Page.RevisionID -StartTimestamp $Page.Retrieved
+        $Output = $Page | Set-MWPage -Bot -NoCreate -Minor -Summary $Summary -Tags $Tags -BaseRevisionID $Page.RevisionID -StartTimestamp $Page.ServerTimestamp
       }
     }
 #endregion
