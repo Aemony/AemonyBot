@@ -601,7 +601,7 @@ Process {
     # Trim multiple newlines, e.g. \n\n\n -> \n\n
     $Page.Wikitext = $Page.Wikitext -replace "(`r?`n){3,}", "`n`n" # $([Environment]::Newline)$([Environment]::Newline)
     # Trim newlines following a parameter, e.g. |current state[...]\n\n<here there be content>
-    $Page.Wikitext = $Page.Wikitext -replace '(\|[\w\s]*[\s]*=[\s]\n)\n([^\|])', '$1$2'
+    $Page.Wikitext = $Page.Wikitext -replace '(\|[\w\s]*[\s]*=[\s]\n)\n([^\||<|}])', '$1$2'
 #endregion
 
 #region Reference Spacing
