@@ -348,6 +348,31 @@ Process {
     }
 #endregion
 
+#region ReferenceFix #0
+    # Convert <ref>link title</ref> to {{Refurl}}
+    $Before       = $Page.Wikitext
+    while ($Page.Wikitext -match "\<ref\>(http(?:s):\/\/[\w\/\^\~\*'@&\+$%#\?=;:._\(\)\-]+?)\s+(.*?)\<\/ref>")
+    {
+      $Section  = $Matches[0].Clone()
+      $Link     = $Matches[1].Trim()
+      $Title    = $Matches[2].Trim()
+
+      # Process it all
+      $Metadata = Export-Metadata -Link $Link -Title $Title -Date $Today
+      $Link     = $Metadata.Link
+      $Title    = ConvertTo-MWEscapedString $Metadata.Title
+      $LinkDate = $Metadata.Date
+
+      # Swap in the replacements
+      $Replacement  = "<ref>{{Refurl|url=$Link|title=$Title|date=$LinkDate}}</ref>"
+      $Page.Wikitext = $Page.Wikitext.Replace($Section, $Replacement)
+    }
+    if ($Before -cne $Page.Wikitext -and $Summary -notlike "*~refurl*")
+    {
+      $Summary += ' ~refurl'
+    }
+#endregion
+
 #region ReferenceFix #1
     # Convert <ref>[link title]</ref> to {{Refurl}}
     $Before       = $Page.Wikitext
