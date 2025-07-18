@@ -257,7 +257,7 @@ Process {
   else
   { $Page    = $ID }
   $Summary   = 'Maintenance:'
-  $Tags      = @()
+  $Tag       = @()
   $Today     = (Get-Date).ToString("yyyy-MM-dd")
   $ThisMonth = (Get-Date).ToString("MMMM yyyy", [CultureInfo]'en-us') # June 2025
 
@@ -617,7 +617,7 @@ Process {
     if ($Before -cne $Page.Wikitext)
     {
       $Summary += ' -keypoints'
-      $Tags    += $('pcgw-removed-keypoints')
+      $Tag     += $('pcgw-removed-keypoints')
     }
 #endregion
 
@@ -731,7 +731,7 @@ Process {
         Write-Host ('What if: Performing maintenance on target "' + $Name + $ID +'".')
         $Output = $Page
       } else {
-        $Output = $Page | Set-MWPage -Bot -NoCreate -Minor -Summary $Summary -Tags $Tags -BaseRevisionID $Page.RevisionID -StartTimestamp $Page.ServerTimestamp
+        $Output = $Page | Set-MWPage -Bot -NoCreate -Minor -Summary $Summary -Tag $Tag -BaseRevisionID $Page.RevisionID -StartTimestamp $Page.ServerTimestamp
       }
     }
 #endregion
