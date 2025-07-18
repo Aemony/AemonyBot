@@ -92,7 +92,7 @@ If ([string]::IsNullOrEmpty($Start) -eq $false)
 { $Cache.Timestamp = $Start }
 
 # Need to declare this again in case reading the cache overwrote it...
-$Cache.Output = @()
+$Cache | Add-Member -MemberType NoteProperty -Name Output -Value @()
 
 $Module  = $false
 $Session = $false
