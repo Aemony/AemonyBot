@@ -61,7 +61,8 @@ Param (
   <#
     Debug
   #>
-  [switch]$WhatIf
+  [switch]$WhatIf,
+  [string]$TargetPage
 )
 
 Begin {
@@ -95,7 +96,9 @@ Process
     }
   }
 
-  $SteamAppId = 0
+  $SteamData  = $null
+  
+  Write-Verbose $SteamAppId
 
   if (-not [string]::IsNullOrWhiteSpace($SteamUrl))
   { $SteamAppId = ($SteamUrl -replace '^([^\d]+\/app\/)(\d+)(\/?.*)', '$2') }
@@ -123,9 +126,9 @@ Process
       }
       else
       {
-        $Data = $Json.$SteamAppId.data
+        $SteamData = $Json.$SteamAppId.data
 
-        $Type = $Data.type
+        $Type = $SteamData.type
 
         if ($Type -ne 'game')
         {
@@ -133,17 +136,17 @@ Process
           return
         }
 
-        $Name = $Data.name
+        $Name = $SteamData.name
 
-            if ($Data.categories | Where-Object { $_.description -eq 'Multi-player' })
+            if ($SteamData.categories | Where-Object { $_.description -eq 'Multi-player' })
         { $Mode = 'Multiplayer' }
-        elseif ($Data.categories | Where-Object { $_.description -eq 'Single-player' })
+        elseif ($SteamData.categories | Where-Object { $_.description -eq 'Single-player' })
         { $Mode = 'Singleplayer' }
         else
         { $Mode = 'Unknown' }
 
-        $Developers = $Data.developers
-        $Pubs = $Data.publishers | Where-Object { $Developers -notcontains $_ }
+        $Developers = $SteamData.developers
+        $Pubs = $SteamData.publishers | Where-Object { $Developers -notcontains $_ }
         if ($null -ne $Pubs)
         { $Publishers = $Pubs }
       }
@@ -156,6 +159,9 @@ Process
     return
   }
 
+  $Developers = $Developers -replace '(?:,?\s|,)(?:Inc|Ltd|GmbH|S\.?A|LLC|V\.?O\.?F|AB)\.?$', ''
+  $Publishers = $Publishers -replace '(?:,?\s|,)(?:Inc|Ltd|GmbH|S\.?A|LLC|V\.?O\.?F|AB)\.?$', ''
+
   $Singleplayer = ($Mode -eq 'Singleplayer')
   $Multiplayer  = ($Mode -eq 'Multiplayer')
 
@@ -167,6 +173,28 @@ Process
   # Platforms
   $Platforms = @()
 
+  # Steam stuff
+  if ($SteamData)
+  {
+    $ReleaseDate = 'TBA'
+
+    # EA
+        if ($SteamData.genres.description -contains 'Early Access')
+    { $ReleaseDate = 'EA' }
+
+    # TBA
+    elseif ($SteamData.release_date.date -ne '' -and
+            $SteamData.release_date.date -ne 'Coming soon')
+    { $ReleaseDate = $SteamData.release_date.date }
+
+    if ($SteamData.platforms.windows -eq 'true')
+    { $ReleaseDateWindows = $ReleaseDate }
+    if ($SteamData.platforms.mac -eq 'true')
+    { $ReleaseDateMacOS   = $ReleaseDate }
+    if ($SteamData.platforms.linux -eq 'true')
+    { $ReleaseDateLinux   = $ReleaseDate }
+  }
+
   if ($ReleaseDateWindows)
   { $Platforms += 'Windows' }
 
@@ -175,6 +203,9 @@ Process
 
   if ($ReleaseDateLinux)
   { $Platforms += 'Linux' }
+
+  if ($Platforms -notcontains 'Windows')
+  { $NoWindows = $true }
 
   # Series
   $Series = ''
@@ -206,35 +237,49 @@ Process
   # Release Date: Windows
   if (-not [string]::IsNullOrWhiteSpace($ReleaseDateWindows))
   {
-    if ($DateTime = [datetime]::Parse($ReleaseDateWindows))
-    { $Template.Wikitext = $Template.Wikitext.Replace('{{Infobox game/row/date|Windows|TBA}}', "{{Infobox game/row/date|Windows|$($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US")))}}") }
-    else
-    { $Template.Wikitext = $Template.Wikitext.Replace('{{Infobox game/row/date|Windows|TBA}}', "{{Infobox game/row/date|Windows|$ReleaseDateWindows}}") }
+    try {
+      $DateTime = [datetime]::Parse($ReleaseDateWindows)
+      $Template.Wikitext = $Template.Wikitext.Replace('{{Infobox game/row/date|Windows|TBA}}', "{{Infobox game/row/date|Windows|$($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US")))}}")
+    } catch {
+      $Template.Wikitext = $Template.Wikitext.Replace('{{Infobox game/row/date|Windows|TBA}}', "{{Infobox game/row/date|Windows|$ReleaseDateWindows}}")
+    }
   }
 
   # Release Date: macOS
   if (-not [string]::IsNullOrWhiteSpace($ReleaseDateMacOS))
   {
-    if ($DateTime = [datetime]::Parse($ReleaseDateMacOS))
-    { $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|macOS|$($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US")))}}`n|reception    = ") }
-    else
-    { $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|macOS|$ReleaseDateMacOS}}`n|reception    = ") }
+    try {
+      $DateTime = [datetime]::Parse($ReleaseDateMacOS)
+      $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|macOS|$($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US")))}}`n|reception    = ")
+    } catch {
+      $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|macOS|$ReleaseDateMacOS}}`n|reception    = ")
+    }
   }
 
   # Release Date: Linux
   if (-not [string]::IsNullOrWhiteSpace($ReleaseDateLinux))
   {
-    if ($DateTime = [datetime]::Parse($ReleaseDateLinux))
-    { $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|Linux|$($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US")))}}`n|reception    = ") }
-    else
-    { $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|Linux|$ReleaseDateLinux}}`n|reception    = ") }
+    try {
+      $DateTime = [datetime]::Parse($ReleaseDateLinux)
+      $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|Linux|$($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US")))}}`n|reception    = ")
+    } catch {
+      $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|Linux|$ReleaseDateLinux}}`n|reception    = ")
+    }
   }
+
+  # Website
+  if ($SteamData.website)
+  { $Template.Wikitext = $Template.Wikitext.Replace('|official site= ', ('|official site= ' + $SteamData.website)) }
 
   # No Retail
   if ($NoRetail)
-  { $Template.Wikitext = $Template.Wikitext.Replace("{{Availability/row| store  | id | drm | notes  | keys | Windows }}`n", '') }
+  { $Template.Wikitext = $Template.Wikitext.Replace("{{Availability/row| retail | | unknown |  |  | Windows }}`n", '') }
+  # Steam
+  elseif ($SteamData)
+  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| steam | $SteamAppId | steam |  |  | $($Platforms -join ', ') }}") }
+  # Retail
   else
-  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| store  | id | drm | notes  | keys | Windows }}', "{{Availability/row| store  | id | drm | notes  | keys | $($RetailPlatforms -join ', ') }}") }
+  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| retail | | unknown |  |  | $($Platforms -join ', ') }}") }
 
   # No Windows
   if ($NoWindows)
@@ -279,7 +324,6 @@ Process
   {
     # Infobox game
     $Template.Wikitext = $Template.Wikitext.Replace('|license      = ', '|license      = shareware')
-
     # Assume a shareware title is a one-time purchase as well
   }
 
@@ -287,13 +331,52 @@ Process
   if ($NoDLCs)
   { $Template.Wikitext = $Template.Wikitext.Replace("`n{{DLC|`n<!-- DLC rows goes below: -->`n`n}}`n", '') }
 
+  elseif ($SteamData.dlc)
+  {
+    # Retrieve info about the DLC using a separate request...
+
+  }
+
+  if ($SteamData)
+  {
+    $Template.Wikitext = $Template.Wikitext.Replace('==Availability==', @"
+'''General information'''
+{{mm}} [http://steamcommunity.com/app/$SteamAppId/discussions/ Steam Community Discussions]
+
+==Availability==
+"@)
+  }
+
+  # Game data
+  $GameDataConfig = ''
+  $GameDataSaves = ''
+  foreach ($Platform in $Platforms)
+  { $GameData += "{{Game data/config|$Platform|}}`n" }
+
+  #$Template.Wikitext = $Template.Wikitext -replace ''
+
+  # Steam Cloud
+  if ($SteamData.categories.description -contains 'Steam Cloud')
+  { $Template.Wikitext = $Template.Wikitext.Replace('|steam cloud               = ', '|steam cloud               = true') }
+
+  # Controller support
+  if ($SteamData.controller_support -eq 'full')
+  {
+    $Template.Wikitext = $Template.Wikitext.Replace('|controller support        = unknown', '|controller support        = true')
+    $Template.Wikitext = $Template.Wikitext.Replace('|full controller           = unknown', '|full controller           = true')
+  }
+
+
   # Create page
+  if ([string]::IsNullOrWhiteSpace($TargetPage))
+  { $TargetPage = $Name }
+
   if ($WhatIf)
   {
-    Write-Host ('What if: Performing maintenance on target "' + $Name + '".')
+    Write-Host ('What if: Performing maintenance on target "' + $TargetPage + '".')
     return $Template.Wikitext
   } else {
-    return Set-MWPage -Name $Name -Summary 'Created page' -Major -CreateOnly -Content $Template.Wikitext
+    return Set-MWPage -Name $TargetPage -Summary 'Created page' -Major -CreateOnly -Content $Template.Wikitext
   }
 }
 
