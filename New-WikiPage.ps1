@@ -116,7 +116,7 @@ Process
       [Parameter(Mandatory, ValueFromPipeline)]
       [string]$String
     )
-    process { return $String -replace ('(?m)^(\|' + (RegexEscape($Parameter)) + '\s*=\s?).*$'), "`$1$Value" }
+    process { return $String -replace ('(?m)^(\|' + (RegexEscape($Parameter)) + '\s*=).*$'), "`$1 $Value" }
   }
 
   if ($NoWindows)
@@ -134,16 +134,18 @@ Process
     }
   }
 
-  $SteamData  = $null
+  $SteamData      = $null
+  $SteamStorePage = $null # ComObject: HTMLFile
   
   Write-Verbose $SteamAppId
 
   if (-not [string]::IsNullOrWhiteSpace($SteamUrl))
   { $SteamAppId = ($SteamUrl -replace '(?m)^([^\d]+\/app\/)(\d+)(\/?.*)', '$2') }
 
-  # Extract Steam app info
+  # Extract information from Steam
   if ($SteamAppId -ne 0)
   {
+    # Steam Store API
     $Link = "https://store.steampowered.com/api/appdetails/?appids=$SteamAppId&l=english"
     try {
       Write-Verbose "Retrieving $Link"
@@ -152,43 +154,74 @@ Process
     } catch {
       $StatusCode = $_.Exception.response.StatusCode.value__
     }
-
-    if ($StatusCode -eq 200)
+    
+    if ($StatusCode -ne 200)
     {
-      $Json = ConvertFrom-Json $WebPage.Content
-
-      if ($Json.$SteamAppId.success -ne 'true')
-      {
-        Write-Warning 'Failed to parse Json from Steam!'
-        return
-      }
-      else
-      {
-        $SteamData = $Json.$SteamAppId.data
-
-        $Type = $SteamData.type
-
-        if ($Type -ne 'game')
-        {
-          Write-Warning "$SteamAppId is not a game!"
-          return
-        }
-
-        $Name = $SteamData.name
-
-            if ($SteamData.categories | Where-Object { $_.description -eq 'Multi-player' })
-        { $Mode = 'Multiplayer' }
-        elseif ($SteamData.categories | Where-Object { $_.description -eq 'Single-player' })
-        { $Mode = 'Singleplayer' }
-        else
-        { $Mode = 'Unknown' }
-
-        $Developers = $SteamData.developers
-        $Pubs = $SteamData.publishers | Where-Object { $Developers -notcontains $_ }
-        if ($null -ne $Pubs)
-        { $Publishers = $Pubs }
-      }
+      Write-Warning 'Failed to retrieve app details from Steam!'
+      return
     }
+
+    $Json = ConvertFrom-Json $WebPage.Content
+
+    if ($Json.$SteamAppId.success -ne 'true')
+    {
+      Write-Warning 'Failed to parse Json from Steam!'
+      return
+    }
+
+    $SteamData = $Json.$SteamAppId.data
+    $Type = $SteamData.type
+
+    if ($Type -ne 'game')
+    {
+      Write-Warning "$SteamAppId is not a game!"
+      return
+    }
+
+    # Steam Store
+    $Link = "https://store.steampowered.com/app/$SteamAppId/&l=english"
+    try {
+      Write-Verbose "Retrieving $Link"
+
+      $UAGoogleBot = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+
+      $Session      = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+      $CookiesAge   = [System.Net.Cookie]::new('birthtime', '0')
+      $CookiesAdult = [System.Net.Cookie]::new('mature_content', '1')
+      $Session.Cookies.Add('https://store.steampowered.com/', $CookiesAge)
+      $Session.Cookies.Add('https://store.steampowered.com/', $CookiesAdult)
+
+      $WebPage    = Invoke-WebRequest -Uri $Link -Method GET -UseBasicParsing -DisableKeepAlive -UserAgent $UAGoogleBot -WebSession $Session
+      $StatusCode = $WebPage.StatusCode
+    } catch {
+      $StatusCode = $_.Exception.response.StatusCode.value__
+    }
+    
+    if ($StatusCode -ne 200)
+    {
+      Write-Warning 'Failed to retrieve store page from Steam!'
+      return
+    }
+
+    $SteamStorePage = New-Object -ComObject "HTMLFile"
+    [string]$Body = $WebPage.Content
+    $SteamStorePage.Write([ref]$Body)
+
+    # Initial stuff
+
+    $Name = $SteamData.name
+
+        if ($SteamData.categories | Where-Object { $_.description -eq 'Multi-player' })
+    { $Mode = 'Multiplayer' }
+    elseif ($SteamData.categories | Where-Object { $_.description -eq 'Single-player' })
+    { $Mode = 'Singleplayer' }
+    else
+    { $Mode = 'Unknown' }
+
+    $Developers = $SteamData.developers
+    $Pubs = $SteamData.publishers | Where-Object { $Developers -notcontains $_ }
+    if ($null -ne $Pubs)
+    { $Publishers = $Pubs }
   }
 
   if ([string]::IsNullOrWhiteSpace($Developers))
@@ -217,6 +250,8 @@ Process
   # Steam stuff
   if ($SteamData)
   {
+    $Template.Wikitext = $Template.Wikitext | SetParameter 'steam appid' -Value "$SteamAppId"
+
     $ReleaseDate = 'TBA'
 
     # EA
@@ -256,8 +291,11 @@ Process
       sports       = (Get-MWCategoryMember 'Sports subcategories'  -Type 'subcat').Name.Replace('Category:', '')
       vehicles     = (Get-MWCategoryMember 'Vehicle subcategories' -Type 'subcat').Name.Replace('Category:', '')
      'art styles'  = (Get-MWCategoryMember 'Art styles'            -Type 'subcat').Name.Replace('Category:', '')
-      themes       = (Get-MWCategoryMember 'Theme'                 -Type 'subcat').Name.Replace('Category:', '') # Category:Theme and not ThemeS ?????????
+      themes       = (Get-MWCategoryMember 'Themes'                -Type 'subcat').Name.Replace('Category:', '')
     }
+
+    $PopularTags = $SteamStorePage.getElementsByClassName('app_tag') | Select-Object -Expand 'innerText'
+    $PopularTags = $PopularTags | Where-Object { $_ -ne '+' }
 
     foreach ($Key in $Taxonomy.Keys)
     {
@@ -272,11 +310,15 @@ Process
         elseif ($TranslatedValue -eq 'Singleplayer')
         { $TranslatedValue = 'Single-player'}
 
-        if ($SteamData.categories.description -contains $TranslatedValue)
-        { $Values += $Value }
-        if ($SteamData.genres.description -contains $TranslatedValue)
+        if ($SteamData.categories.description -contains $TranslatedValue -or
+            $SteamData.genres.description     -contains $TranslatedValue -or
+            $PopularTags                      -contains $TranslatedValue)
         { $Values += $Value }
       }
+
+      # If no pacing, assume Real-Time
+      if ($Key -eq 'pacing' -and $Values.Count -eq 0)
+      { $Values += 'Real-time' }
 
       # Force Singleplayer to be listed first
       if ($Key -eq 'modes')
@@ -285,7 +327,6 @@ Process
       if ($Values)
       { $Template.Wikitext = $Template.Wikitext | SetTemplate "Infobox game/row/taxonomy/$Key" -Value ($Values -join ', ') }
     }
-    
 
 
     # In-App Purchases
@@ -445,7 +486,7 @@ Process
 
   elseif ($SteamData.dlc)
   {
-    # Retrieve info about the DLC using a separate request...
+    # Retrieve info about the DLC using separate requests...
 
   }
 
