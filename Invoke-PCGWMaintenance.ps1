@@ -124,6 +124,7 @@ Process {
         $TempTitle  = Read-Title $WebPage.Content
       } catch {
         $StatusCode = $_.Exception.response.StatusCode.value__
+        Write-Warning "Failed (HTTP $StatusCode) trying to retrieve $Link"
       }
 
       # Helper array used to try to detect 404 pages through the website title
@@ -138,12 +139,13 @@ Process {
       {
         # TODO Use the Wayback Machine API: https://archive.org/help/wayback_api.php
         try {
-          Write-Verbose "Retrieving $Link"
+          Write-Verbose "Retrieving https://web.archive.org/web/$Link"
           $WebPage    = Invoke-WebRequest -Uri "https://web.archive.org/web/$Link" -Method GET -UseBasicParsing -DisableKeepAlive
           $StatusCode = $WebPage.StatusCode
           $TempTitle  = Read-Title $WebPage.Content
         } catch {
-          Write-Warning "Failed (HTTP $StatusCode) trying to retrieve $Link"
+          $StatusCode = $_.Exception.response.StatusCode.value__
+          Write-Warning "Failed (HTTP $StatusCode) trying to retrieve https://web.archive.org/web/$Link"
         }
       }
 
