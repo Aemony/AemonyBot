@@ -185,7 +185,7 @@ Process
 
       $UAGoogleBot = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
 
-      $Session      = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+      $Session      = New-Object Microsoft.PowerShell.Commands.WebRequestSession # [Microsoft.PowerShell.Commands.WebRequestSession]::new()
       $CookiesAge   = [System.Net.Cookie]::new('birthtime', '0')
       $CookiesAdult = [System.Net.Cookie]::new('mature_content', '1')
       $Session.Cookies.Add('https://store.steampowered.com/', $CookiesAge)
@@ -328,6 +328,35 @@ Process
       { $Template.Wikitext = $Template.Wikitext | SetTemplate "Infobox game/row/taxonomy/$Key" -Value ($Values -join ', ') }
     }
 
+    # https://store.steampowered.com/app/1561340/Berserk_Boy
+    if ($SteamData.metacritic.url)
+    {
+      
+      $Template.Wikitext = $Template.Wikitext.Replace('Metacritic|link|rating', "Metacritic|link|rating")
+
+    }
+
+    # https://store.steampowered.com/app/1561340/Berserk_Boy
+    if ($Reviews = $SteamStorePage.getElementsByName('game_area_reviews') | Select-Object -Expand 'innerText')
+    {
+      $MetaCritic = $null
+      $OpenCritic = $null
+      
+      ($Reviews -split "`n") | Where-Object { $_ -match '^(\d+)\s.\s([\w\s]+)$' } | ForEach-Object {
+        if ($Matches[2] -eq 'MetaCritic')
+        { $MetaCritic = $Matches[1] }
+
+        if ($Matches[2] -eq 'OpenCritic')
+        { $OpenCritic = $Matches[1] }
+      }
+
+      if ($MetaCritic)
+      {
+        $Template.Wikitext = $Template.Wikitext.Replace('Metacritic|link|rating', "Metacritic|link|rating")
+      }
+      
+
+    }
 
     # In-App Purchases
     $InAppPurchases = ($SteamData.categories.description -contains 'In-App Purchases')
@@ -558,7 +587,11 @@ Process
     [Console]::ForegroundColor = 'Yellow'
     [Console]::WriteLine('What if: Performing maintenance on target "' + $TargetPage + '".')
     [Console]::ResetColor()
-    return $Template.Wikitext
+    return @{
+      Wikitext       = $Template.Wikitext
+      SteamData      = $SteamData
+      SteamStorePage = $SteamStorePage
+    }
   } else {
     return Set-MWPage -Name $TargetPage -Summary 'Created page' -Major -CreateOnly -Content $Template.Wikitext
   }
