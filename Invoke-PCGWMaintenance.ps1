@@ -248,27 +248,37 @@ Process {
 
 #region Initialization...
 
-  Write-Verbose "Working on $Name$ID..."
+  $Page   = $null
+  if ($PSBoundParameters.ContainsKey('Name'))
+  { $Page = $Name }
+  else
+  { $Page = $ID }
+
+
+  if ($WhatIf)
+  {
+    [Console]::BackgroundColor = 'Black'
+    [Console]::ForegroundColor = 'Yellow'
+    [Console]::WriteLine('What if: Performing maintenance on target "' + $Page + '".')
+    [Console]::ResetColor()
+  }
+
+  Write-Verbose "Working on $Page..."
 
   # Used to store details of the edit, if one is performed
   $Output = $null
-  
-  $Page      =  $null
-  if ($PSBoundParameters.ContainsKey('Name'))
-  { $Page    = $Name }
-  else
-  { $Page    = $ID }
+
   $Summary   = 'Maintenance:'
   $Tags       = @()
   $Today     = (Get-Date).ToString("yyyy-MM-dd")
   $ThisMonth = (Get-Date).ToString("MMMM yyyy", [CultureInfo]'en-us') # June 2025
 
-  $Page = $null
   # Use Get-MWPage cuz we want RevisionID and Timestamp
+  $Page   = $null
   if ($PSBoundParameters.ContainsKey('Name')) {
-    $Page    = (Get-MWPage -Wikitext -Name $Name)
+    $Page = (Get-MWPage -Wikitext -Name $Name)
   } elseif ($PSBoundParameters.ContainsKey('ID')) {
-    $Page    = (Get-MWPage -Wikitext -ID   $ID)
+    $Page = (Get-MWPage -Wikitext -ID   $ID)
   }
 
   # Extract the namespace name from the page name
@@ -658,6 +668,62 @@ Process {
     }
 #endregion
 
+#region Middleware
+    if ($Page.Wikitext -match '(?s){{Middleware(.*?)\n\n={1,6}')
+    {
+      $Middleware = $Matches[1]
+      $Before     = $Page.Wikitext
+
+      function CleanTemplateParameter
+      {
+        param (
+          [Parameter(Mandatory, Position=0)]
+          [string]$Template,
+          [Parameter(Mandatory, Position=1)]
+          [string]$Parameter,
+          [Parameter(Mandatory, ValueFromPipeline)]
+          [string]$String
+        )
+
+        process
+        {
+          if ($Template -match "\|$Parameter\s+=(.+)\n")
+          {
+            $Values = $Matches[1].Trim()
+            if (-not [string]::IsNullOrWhiteSpace($Values))
+            {
+              # Remove any links
+              $Replacement = ((((($Values -split ',') -replace '\[\[[^\|]+\|(.*)\]\]', '$1') -replace '\[\[(.*)\]\]', '$1') -replace '\[[^\s]+\s(.*)\]', '$1') -join (','))
+              
+              # Remove any wildcards
+              $Replacement = $Replacement.Replace('*', '')
+
+              if ($Values -ne $Replacement)
+              {
+                Write-Verbose "Performing change on '$Parameter':`nOrg: $Values`nNew: $Replacement"
+                return $String.Replace($Values, $Replacement)
+              }
+            }
+          }
+          return $String
+        }
+      }
+
+      $Page.Wikitext = $Page.Wikitext | CleanTemplateParameter $Middleware -Parameter 'physics'
+      $Page.Wikitext = $Page.Wikitext | CleanTemplateParameter $Middleware -Parameter 'audio'
+      $Page.Wikitext = $Page.Wikitext | CleanTemplateParameter $Middleware -Parameter 'interface'
+      $Page.Wikitext = $Page.Wikitext | CleanTemplateParameter $Middleware -Parameter 'input'
+      $Page.Wikitext = $Page.Wikitext | CleanTemplateParameter $Middleware -Parameter 'cutscenes'
+      $Page.Wikitext = $Page.Wikitext | CleanTemplateParameter $Middleware -Parameter 'multiplayer'
+      $Page.Wikitext = $Page.Wikitext | CleanTemplateParameter $Middleware -Parameter 'anticheat'
+
+      if ($Before -cne $Page.Wikitext)
+      {
+        $Summary += ' ~middleware'
+      }
+    }
+#endregion
+
 #region Misc
     $Before       = $Page.Wikitext
 
@@ -727,14 +793,12 @@ Process {
     if ($OriginalContent -cne $Page.Wikitext)
     {
       Write-Verbose $Summary
-
       if ($WhatIf)
-      {
-        Write-Host ('What if: Performing maintenance on target "' + $Name + $ID +'".')
-        $Output = $Page
-      } else {
-        $Output = $Page | Set-MWPage -Bot -NoCreate -Minor -Summary $Summary -Tags $Tags -BaseRevisionID $Page.RevisionID -StartTimestamp $Page.ServerTimestamp
-      }
+      { $Output = $Page }
+      else
+      { $Output = $Page | Set-MWPage -Bot -NoCreate -Minor -Summary $Summary -Tags $Tags -BaseRevisionID $Page.RevisionID -StartTimestamp $Page.ServerTimestamp }
+    } else {
+      Write-Verbose 'No change was made to target.'
     }
 #endregion
 
