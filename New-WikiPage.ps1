@@ -9,7 +9,7 @@ Param (
 
   [Parameter(Mandatory, ParameterSetName = 'Generic')]
   [ValidateSet('Singleplayer', 'Multiplayer', 'Unknown')]
-  [string]$Mode,
+  [string[]]$Modes,
 
   [Parameter(Mandatory, ParameterSetName = 'Generic')]
   [ValidateNotNullOrEmpty()]
@@ -35,7 +35,7 @@ Param (
     Steam ID
   #>
   [Parameter(Mandatory, ParameterSetName = 'SteamId')]
-  [int]$SteamAppId,
+  [int]$SteamAppId = 0,
 
   <#
     Steam URL
@@ -61,8 +61,8 @@ Param (
   <#
     Debug
   #>
-  [switch]$WhatIf,
-  [string]$TargetPage
+  [string]$TargetPage,
+  [switch]$WhatIf
 )
 
 Begin {
@@ -78,6 +78,75 @@ Begin {
 
 Process
 {
+  # Core object
+  $Game = @{
+    Name         = ''
+    Developers   = @()
+    Publishers   = @()
+    ReleaseDates = @{
+      Linux        = ''
+      macOS        = ''
+      Windows      = ''
+    }
+    Platforms    = @()
+    Reception    = @{
+      MetaCritic   = @{
+        Rating       = ''
+        URL          = ''
+      }
+      OpenCritic   = @{
+        Rating       = ''
+        URL          = ''
+      }
+      IGDB         = @{
+        Rating       = ''
+        URL          = ''
+      }
+    }
+    Taxonomy     = @{
+      modes        = @()
+      pacing       = @()
+      perspectives = @()
+      controls     = @()
+      genres       = @()
+      sports       = @()
+      vehicles     = @()
+     'art styles'  = @()
+      themes       = @()
+    }
+    Website      = ''
+    Steam        = @{
+      IDs          = @()
+     'steam cloud' = 'unknown'
+    }
+    DLCs         = @()
+    Video        = @{
+     'hdr'                      = 'unknown'
+     'color blind'              = 'unknown'
+    }
+    Input        = @{
+      'controller support'      = 'unknown'
+      'full controller support' = 'unknown'
+    }
+    Audio        = @{
+      'separate volume'         = 'unknown'
+      'surround sound'          = ''
+    }
+  }
+
+  # Supported taxonomy tags
+  $Taxonomy = @{
+    modes        = (Get-MWCategoryMember 'Modes'                 -Type 'subcat').Name.Replace('Category:', '')
+    pacing       = (Get-MWCategoryMember 'Pacing'                -Type 'subcat').Name.Replace('Category:', '')
+    perspectives = (Get-MWCategoryMember 'Perspectives'          -Type 'subcat').Name.Replace('Category:', '')
+    controls     = (Get-MWCategoryMember 'Controls'              -Type 'subcat').Name.Replace('Category:', '')
+    genres       = (Get-MWCategoryMember 'Genres'                -Type 'subcat').Name.Replace('Category:', '')
+    sports       = (Get-MWCategoryMember 'Sports subcategories'  -Type 'subcat').Name.Replace('Category:', '')
+    vehicles     = (Get-MWCategoryMember 'Vehicle subcategories' -Type 'subcat').Name.Replace('Category:', '')
+   'art styles'  = (Get-MWCategoryMember 'Art styles'            -Type 'subcat').Name.Replace('Category:', '')
+    themes       = (Get-MWCategoryMember 'Themes'                -Type 'subcat').Name.Replace('Category:', '')
+  }
+
   function RegexEscape($UnescapedString)
   { return [regex]::Escape($UnescapedString).Replace('/', '\/') }
 
@@ -119,37 +188,26 @@ Process
     process { return $String -replace ('(?m)^(\|' + (RegexEscape($Parameter)) + '\s*=).*$'), "`$1 $Value" }
   }
 
-  if ($NoWindows)
+  function GetSteamData($AppId)
   {
-    if ($ReleaseDateWindows)
-    {
-      Write-Warning '-NoWindows and -ReleaseDateWindows cannot be used at the same time!'
-      return
-    }
+    # Extract information from Steam
+    Write-Verbose "Steam App ID: $AppId"
 
-    if (-not $ReleaseDateLinux -and -not $ReleaseDateMacOS)
-    {
-      Write-Warning 'A Linux or macOS release date needs to be specified when using -NoWindows!'
-      return
-    }
-  }
+    $Details      = $null
+    $PageComObject = $null # ComObject: HTMLFile
 
-  $SteamData      = $null
-  $SteamStorePage = $null # ComObject: HTMLFile
-  
-  Write-Verbose $SteamAppId
+    $UAGoogleBot  = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+    $Session      = New-Object Microsoft.PowerShell.Commands.WebRequestSession # [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+    $CookiesAge   = [System.Net.Cookie]::new('birthtime', '0')
+    $CookiesAdult = [System.Net.Cookie]::new('mature_content', '1')
+    $Session.Cookies.Add('https://store.steampowered.com/', $CookiesAge)
+    $Session.Cookies.Add('https://store.steampowered.com/', $CookiesAdult)
 
-  if (-not [string]::IsNullOrWhiteSpace($SteamUrl))
-  { $SteamAppId = ($SteamUrl -replace '(?m)^([^\d]+\/app\/)(\d+)(\/?.*)', '$2') }
-
-  # Extract information from Steam
-  if ($SteamAppId -ne 0)
-  {
     # Steam Store API
-    $Link = "https://store.steampowered.com/api/appdetails/?appids=$SteamAppId&l=english"
+    $Link = "https://store.steampowered.com/api/appdetails/?appids=$AppId&l=english"
     try {
       Write-Verbose "Retrieving $Link"
-      $WebPage    = Invoke-WebRequest -Uri $Link -Method GET -UseBasicParsing -DisableKeepAlive
+      $WebPage    = Invoke-WebRequest -Uri $Link -Method GET -UseBasicParsing -DisableKeepAlive -UserAgent $UAGoogleBot -WebSession $Session
       $StatusCode = $WebPage.StatusCode
     } catch {
       $StatusCode = $_.Exception.response.StatusCode.value__
@@ -163,34 +221,25 @@ Process
 
     $Json = ConvertFrom-Json $WebPage.Content
 
-    if ($Json.$SteamAppId.success -ne 'true')
+    if ($Json.$AppId.success -ne 'true')
     {
       Write-Warning 'Failed to parse Json from Steam!'
       return
     }
 
-    $SteamData = $Json.$SteamAppId.data
-    $Type = $SteamData.type
+    $Details = $Json.$AppId.data
+    $Type = $Details.type
 
     if ($Type -ne 'game')
     {
-      Write-Warning "$SteamAppId is not a game!"
+      Write-Warning "$AppId is not a game!"
       return
     }
 
     # Steam Store
-    $Link = "https://store.steampowered.com/app/$SteamAppId/&l=english"
+    $Link = "https://store.steampowered.com/app/$AppId/&l=english"
     try {
       Write-Verbose "Retrieving $Link"
-
-      $UAGoogleBot = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
-
-      $Session      = New-Object Microsoft.PowerShell.Commands.WebRequestSession # [Microsoft.PowerShell.Commands.WebRequestSession]::new()
-      $CookiesAge   = [System.Net.Cookie]::new('birthtime', '0')
-      $CookiesAdult = [System.Net.Cookie]::new('mature_content', '1')
-      $Session.Cookies.Add('https://store.steampowered.com/', $CookiesAge)
-      $Session.Cookies.Add('https://store.steampowered.com/', $CookiesAdult)
-
       $WebPage    = Invoke-WebRequest -Uri $Link -Method GET -UseBasicParsing -DisableKeepAlive -UserAgent $UAGoogleBot -WebSession $Session
       $StatusCode = $WebPage.StatusCode
     } catch {
@@ -203,72 +252,46 @@ Process
       return
     }
 
-    $SteamStorePage = New-Object -ComObject "HTMLFile"
-    [string]$Body = $WebPage.Content
-    $SteamStorePage.Write([ref]$Body)
+    $PageComObject = New-Object -ComObject "HTMLFile"
+    [string]$PageContent = $WebPage.Content
+    $PageComObject.Write([ref]$PageContent)
 
-    # Initial stuff
 
-    $Name = $SteamData.name
 
-        if ($SteamData.categories | Where-Object { $_.description -eq 'Multi-player' })
-    { $Mode = 'Multiplayer' }
-    elseif ($SteamData.categories | Where-Object { $_.description -eq 'Single-player' })
-    { $Mode = 'Singleplayer' }
-    else
-    { $Mode = 'Unknown' }
+    # Parsing the data
 
-    $Developers = $SteamData.developers
-    $Pubs = $SteamData.publishers | Where-Object { $Developers -notcontains $_ }
+    $Game.Name = $Details.name
+
+    if ($Details.categories | Where-Object { $_.description -eq 'Multi-player' })
+    { $Game.Taxonomy.modes += 'Multiplayer' }
+    
+    if ($Details.categories | Where-Object { $_.description -eq 'Single-player' })
+    { $Game.Taxonomy.modes += 'Singleplayer' }
+
+    $Game.Developers = $Details.developers
+    $Pubs = $Details.publishers | Where-Object { $Developers -notcontains $_ }
     if ($null -ne $Pubs)
-    { $Publishers = $Pubs }
-  }
+    { $Game.Publishers = $Pubs }
 
-  if ([string]::IsNullOrWhiteSpace($Developers))
-  {
-    Write-Warning 'A developer needs to be specified to continue!'
-    return
-  }
-
-  $Developers = $Developers -replace '(?:,?\s|,)(?:Inc|Ltd|GmbH|S\.?A|LLC|V\.?O\.?F|AB)\.?$', ''
-  if ($Publishers)
-  { $Publishers = $Publishers -replace '(?:,?\s|,)(?:Inc|Ltd|GmbH|S\.?A|LLC|V\.?O\.?F|AB)\.?$', '' }
-
-  $Template = Get-MWPage -PageName $Templates[$Mode] -Wikitext
-
-  # Game Name
-  $Name = $Name.Replace('™', '')
-  $Name = $Name.Replace('®', '')
-  $Name = $Name.Replace('©', '')
-  $Name = $Name.Replace(': ', ' - ')
-  $Name = $Name.Replace(':', '')
-  $Template.Wikitext = $Template.Wikitext.Replace('GAME TITLE', $Name)
-
-  # Platforms
-  $Platforms = @()
-
-  # Steam stuff
-  if ($SteamData)
-  {
-    $Template.Wikitext = $Template.Wikitext | SetParameter 'steam appid' -Value "$SteamAppId"
-
-    $ReleaseDate = 'TBA'
+    $ReleaseDate   = 'TBA'
 
     # EA
-        if ($SteamData.genres.description -contains 'Early Access')
+    if ($Details.genres.description -contains 'Early Access')
     { $ReleaseDate = 'EA' }
 
     # TBA
-    elseif ($SteamData.release_date.date -ne '' -and
-            $SteamData.release_date.date -ne 'Coming soon')
-    { $ReleaseDate = $SteamData.release_date.date }
+    elseif ($Details.release_date.date -ne '' -and
+            $Details.release_date.date -ne 'Coming soon')
+    { $ReleaseDate = $Details.release_date.date }
 
-    if ($SteamData.platforms.windows -eq 'true')
-    { $ReleaseDateWindows = $ReleaseDate }
-    if ($SteamData.platforms.mac -eq 'true')
-    { $ReleaseDateMacOS   = $ReleaseDate }
-    if ($SteamData.platforms.linux -eq 'true')
-    { $ReleaseDateLinux   = $ReleaseDate }
+    if ($Details.platforms.mac -eq 'true')
+    { $Game.ReleaseDates.macOS   = $ReleaseDate }
+
+    if ($Details.platforms.linux -eq 'true')
+    { $Game.ReleaseDates.Linux   = $ReleaseDate }
+
+    if ($Details.platforms.windows -eq 'true')
+    { $Game.ReleaseDates.Windows = $ReleaseDate }
 
     # Taxonomy
     <#
@@ -282,22 +305,10 @@ Process
       {{Infobox game/row/taxonomy/themes            | }}
     #>
 
-    $Taxonomy = @{
-      modes        = (Get-MWCategoryMember 'Modes'                 -Type 'subcat').Name.Replace('Category:', '')
-      pacing       = (Get-MWCategoryMember 'Pacing'                -Type 'subcat').Name.Replace('Category:', '')
-      perspectives = (Get-MWCategoryMember 'Perspectives'          -Type 'subcat').Name.Replace('Category:', '')
-      controls     = (Get-MWCategoryMember 'Controls'              -Type 'subcat').Name.Replace('Category:', '')
-      genres       = (Get-MWCategoryMember 'Genres'                -Type 'subcat').Name.Replace('Category:', '')
-      sports       = (Get-MWCategoryMember 'Sports subcategories'  -Type 'subcat').Name.Replace('Category:', '')
-      vehicles     = (Get-MWCategoryMember 'Vehicle subcategories' -Type 'subcat').Name.Replace('Category:', '')
-     'art styles'  = (Get-MWCategoryMember 'Art styles'            -Type 'subcat').Name.Replace('Category:', '')
-      themes       = (Get-MWCategoryMember 'Themes'                -Type 'subcat').Name.Replace('Category:', '')
-    }
-
-    $PopularTags = $SteamStorePage.getElementsByClassName('app_tag') | Select-Object -Expand 'innerText'
+    $PopularTags = $PageComObject.getElementsByClassName('app_tag') | Select-Object -Expand 'innerText'
     $PopularTags = $PopularTags | Where-Object { $_ -ne '+' }
 
-    foreach ($Key in $Taxonomy.Keys)
+    foreach ($Key in $Taxoonmy.Keys)
     {
       $Values = @()
 
@@ -310,99 +321,258 @@ Process
         elseif ($TranslatedValue -eq 'Singleplayer')
         { $TranslatedValue = 'Single-player'}
 
-        if ($SteamData.categories.description -contains $TranslatedValue -or
-            $SteamData.genres.description     -contains $TranslatedValue -or
+        if ($Details.categories.description -contains $TranslatedValue -or
+            $Details.genres.description     -contains $TranslatedValue -or
             $PopularTags                      -contains $TranslatedValue)
         { $Values += $Value }
       }
-
-      # If no pacing, assume Real-Time
-      if ($Key -eq 'pacing' -and $Values.Count -eq 0)
-      { $Values += 'Real-time' }
-
-      # Force Singleplayer to be listed first
-      if ($Key -eq 'modes')
-      { $Values = $Values | Sort-Object -Descending }
       
       if ($Values)
-      { $Template.Wikitext = $Template.Wikitext | SetTemplate "Infobox game/row/taxonomy/$Key" -Value ($Values -join ', ') }
+      { $Game.Taxonomy.$Key = $Values }
     }
 
-    # https://store.steampowered.com/app/1561340/Berserk_Boy
-    if ($SteamData.metacritic.url)
+    # IGDB      : https://store.steampowered.com/app/1814770/Tall_Poppy/
+    # OpenCritic: https://store.steampowered.com/app/1561340/Berserk_Boy/
+    # MetaCritic: https://store.steampowered.com/app/1561340/Berserk_Boy/
+    if ($Reviews = $PageComObject.getElementsByName('game_area_reviews') | Select-Object -Expand 'innerHtml')
     {
-      
-      $Template.Wikitext = $Template.Wikitext.Replace('Metacritic|link|rating', "Metacritic|link|rating")
+      $Part1  = RegexEscape('<a href="https://steamcommunity.com/linkfilter/?u=')
+      $Part2 = RegexEscape('" rel=" noopener" target=_blank>')
+      $Part3  = RegexEscape('</a>')
+      ($Reviews -split "<br>") | Where-Object { $_ -match "^(\d+)\s.\s$Part1(.*)$Part2([\w\s]+)$Part3$" } | ForEach-Object {
+        if ($Matches[3] -eq 'MetaCritic')
+        {
+          $Game.Reception.MetaCritic.Rating = $Matches[1]
+          $Game.Reception.MetaCritic.Url    = [System.Uri]::UnescapeDataString($Matches[2]).Replace('https://www.metacritic.com/game/', '') -replace '([\w|\d|\-]+).*', '$1'
+        }
 
-    }
+        if ($Matches[3] -eq 'OpenCritic')
+        {
+          $Game.Reception.OpenCritic.Rating = $Matches[1]
+          $Game.Reception.OpenCritic.Url    = [System.Uri]::UnescapeDataString($Matches[2]).Replace('https://opencritic.com/game/', '') -replace '(\d+\/[\w|\d|\-]+).*', '$1'
+        }
 
-    # https://store.steampowered.com/app/1561340/Berserk_Boy
-    if ($Reviews = $SteamStorePage.getElementsByName('game_area_reviews') | Select-Object -Expand 'innerText')
-    {
-      $MetaCritic = $null
-      $OpenCritic = $null
-      
-      ($Reviews -split "`n") | Where-Object { $_ -match '^(\d+)\s.\s([\w\s]+)$' } | ForEach-Object {
-        if ($Matches[2] -eq 'MetaCritic')
-        { $MetaCritic = $Matches[1] }
-
-        if ($Matches[2] -eq 'OpenCritic')
-        { $OpenCritic = $Matches[1] }
+        if ($Matches[3] -eq 'IGDB')
+        {
+          $Game.Reception.IGDB.Rating       = $Matches[1]
+          $Game.Reception.IGDB.Url          = [System.Uri]::UnescapeDataString($Matches[2]).Replace('https://www.igdb.com/games/', '') -replace '([\w|\d|\-]+).*', '$1'
+        }
       }
-
-      if ($MetaCritic)
-      {
-        $Template.Wikitext = $Template.Wikitext.Replace('Metacritic|link|rating', "Metacritic|link|rating")
-      }
-      
-
     }
 
     # In-App Purchases
-    $InAppPurchases = ($SteamData.categories.description -contains 'In-App Purchases')
+    $InAppPurchases = ($Details.categories.description -contains 'In-App Purchases')
 
-    if ($SteamData.is_free -eq 'true')
+    if ($Details.is_free -eq 'true')
     {
       if ($InAppPurchases)
       { $FreeToPlay = $true }
       else
       { $Freeware   = $true }
     }
+
+    # Game Data
+    if ($Details.categories.description -contains 'Steam Cloud')
+    { $Game.Steam.'steam cloud'        = 'true' }
+
+    # Video
+    if ($Details.categories.description -contains 'HDR available')
+    { $Game.Video.'hdr'                = 'true' }
+    if ($Details.categories.description -contains 'Color Alternatives')
+    { $Game.Video.'color blind'        = 'true' }
+
+    # Input
+    if ($Details.controller_support -eq 'full')
+    {
+      $Game.Input.'controller support' = 'true'
+      $Game.Input.'full controller'    = 'true'
+    } elseif ($Details.categories.description -contains 'Partial Controller Support')
+    {
+      $Game.Input.'controller support' = 'true'
+      $Game.Input.'full controller'    = 'false'
+    }
+    
+    # Audio
+    if ($Details.categories.description -contains 'Custom Volume Controls')
+    { $Game.Audio.'separate volume'    = 'true' }
+
+    $Sound = @()
+    if ($Details.categories.description -contains 'Stereo Sound')
+    { $Sound += 'Stereo' }
+    if ($Details.categories.description -contains 'Surround Sound')
+    { $Sound += '5.1' }
+
+    if ($Sound)
+    { $Game.Audio.'surround sound'     = ($Sound -join ', ') }
+
+    return @{
+      Details = $Details
+      Store   = @{
+        Page      = $PageContent
+        ComObject = $PageComObject
+      }
+    }
   }
 
+
+  <#
+  
+    START PROCESSING
+  
+  #>
+
+  # Initialization: Steam Game
+
+  if (-not [string]::IsNullOrWhiteSpace($SteamUrl))
+  { $SteamAppId = ($SteamUrl -replace '(?m)^([^\d]+\/app\/)(\d+)(\/?.*)', '$2') }
+
+  $Steam = @{
+    Details = ''
+    Store   = @{
+      Page      = ''
+      ComObject = $null # COM Object: HtmlFile
+    }
+  }
+
+  if ($SteamAppId -ne 0)
+  { $Steam = GetSteamData ($SteamAppId) }
+
+  # Initialization: Generic Game
+
+  if ($Name)
+  { $Game.Name = $Name }
+
+  if ($Modes)
+  { $Game.Taxonomy.modes = $Modes }
+
+  if ($Developers)
+  { $Game.Developers = $Developers }
+
+  if ($Publishers)
+  { $Game.Publishers = $Publishers }
+
   if ($ReleaseDateWindows)
-  { $Platforms += 'Windows' }
+  { $Game.ReleaseDates.Windows = $ReleaseDateWindows }
 
   if ($ReleaseDateMacOS)
-  { $Platforms += 'macOS' }
+  { $Game.ReleaseDates.macOS = $ReleaseDateMacOS }
 
   if ($ReleaseDateLinux)
-  { $Platforms += 'Linux' }
+  { $Game.ReleaseDates.Linux = $ReleaseDateLinux }
 
-  if ($Platforms -notcontains 'Windows')
+
+
+  # Validation
+
+  if ([string]::IsNullOrWhiteSpace($Game.Name))
+  {
+    Write-Warning 'A game name needs to be specified to continue!'
+    return
+  }
+
+  if ([string]::IsNullOrWhiteSpace($Game.Developers))
+  {
+    Write-Warning 'A developer needs to be specified to continue!'
+    return
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($Game.ReleaseDates.macOS))
+  { $Game.Platforms += 'macOS' }
+
+  if (-not [string]::IsNullOrWhiteSpace($Game.ReleaseDates.Linux))
+  { $Game.Platforms += 'Linux' }
+
+  if (-not [string]::IsNullOrWhiteSpace($Game.ReleaseDates.Windows))
+  { $Game.Platforms += 'Windows' }
+
+  if ($Game.Platforms -notcontains 'Windows')
   { $NoWindows = $true }
+
+  if ($NoWindows)
+  {
+    if ([string]::IsNullOrWhiteSpace($Game.ReleaseDates.Linux) -and
+        [string]::IsNullOrWhiteSpace($Game.ReleaseDates.macOS))
+    {
+      Write-Warning 'A Linux or macOS release date needs to be specified when using -NoWindows!'
+      return
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Game.ReleaseDates.Windows))
+    {
+      Write-Warning '-NoWindows and -ReleaseDateWindows cannot be used at the same time!'
+      return
+    }
+  }
+
+
+
+  # Processing
+  $Game.Name         = $Game.Name.Replace('™', '')
+  $Game.Name         = $Game.Name.Replace('®', '')
+  $Game.Name         = $Game.Name.Replace('©', '')
+  $Game.Name         = $Game.Name.Replace(': ', ' - ')
+  $Game.Name         = $Game.Name.Replace(':', '')
+
+  $Game.Developers   = $Game.Developers -replace '(?:,?\s|,)(?:Inc|Ltd|GmbH|S\.?A|LLC|V\.?O\.?F|AB)\.?$', ''
+  if ($Game.Publishers)
+  { $Game.Publishers = $Game.Publishers -replace '(?:,?\s|,)(?:Inc|Ltd|GmbH|S\.?A|LLC|V\.?O\.?F|AB)\.?$', '' }
+
+
+  # Game Name
+
+  $TemplateName      = if ($Modes) { $Modes[0] } else { 'Unknown' }
+  $Template          = Get-MWPage -PageName $Templates[$TemplateName] -Wikitext
+  $Template.Wikitext = $Template.Wikitext.Replace('GAME TITLE', $Game.Name)
+
+  # Taxonomy
+  <#
+    {{Infobox game/row/taxonomy/pacing            | }}
+    {{Infobox game/row/taxonomy/perspectives      | }}
+    {{Infobox game/row/taxonomy/controls          | }}
+    {{Infobox game/row/taxonomy/genres            | }}
+    {{Infobox game/row/taxonomy/sports            | }}
+    {{Infobox game/row/taxonomy/vehicles          | }}
+    {{Infobox game/row/taxonomy/art styles        | }}
+    {{Infobox game/row/taxonomy/themes            | }}
+  #>
+
+  foreach ($Key in $Game.Taxonomy.Keys)
+  {
+    $Values = $Game.Taxonomy[$Key]
+
+    # If no pacing, assume Real-Time
+    if ($Key -eq 'pacing' -and $Values.Count -eq 0)
+    { $Values += 'Real-time' }
+
+    # Force Singleplayer to be listed first
+    if ($Key -eq 'modes')
+    { $Values = $Values | Sort-Object -Descending }
+    
+    if ($Values)
+    { $Template.Wikitext = $Template.Wikitext | SetTemplate "Infobox game/row/taxonomy/$Key" -Value ($Values -join ', ') }
+  }
 
   # Series
   $Series = ''
   $Template.Wikitext = $Template.Wikitext | SetTemplate 'Infobox game/row/taxonomy/series' -Value $Series
 
   # Developer
-  $Template.Wikitext = $Template.Wikitext.Replace('DEVELOPER', $Developers[0])
+  $Template.Wikitext = $Template.Wikitext.Replace('DEVELOPER', $Game.Developers[0])
 
-  if ($Developers.Count -gt 1)
+  if ($Game.Developers.Count -gt 1)
   {
-    foreach ($Developer in $Developers)
+    foreach ($Developer in $Game.Developers)
     { $Template.Wikitext = $Template.Wikitext.Replace('|publishers   = ', "{{Infobox game/row/developer|$Developer}}`n|publishers   = ") }
   }
 
   # Publisher
-  if (-not [string]::IsNullOrWhiteSpace($Publishers))
+  if (-not [string]::IsNullOrWhiteSpace($Game.Publishers))
   {
-    $Template.Wikitext = $Template.Wikitext.Replace('PUBLISHER', $Publishers[0])
+    $Template.Wikitext = $Template.Wikitext.Replace('PUBLISHER', $Game.Publishers[0])
 
-    if ($Publishers.Count -gt 1)
+    if ($Game.Publishers.Count -gt 1)
     {
-      foreach ($Publisher in $Publishers)
+      foreach ($Publisher in $Game.Publishers)
       { $Template.Wikitext = $Template.Wikitext.Replace('|publishers   = ', "{{Infobox game/row/developer|$Publisher}}`n|publishers   = ") }
     }
   } else {
@@ -442,19 +612,30 @@ Process
     }
   }
 
+  
+
+  if ($Game.ExternalData.SteamIDs)
+  {
+    $Template.Wikitext = $Template.Wikitext | SetParameter 'steam appid' -Value "$($Game.ExternalData.SteamIDs[0])"
+
+    if ($Game.ExternalData.SteamIDs.Count -gt 1)
+    { $Template.Wikitext = $Template.Wikitext | SetParameter 'steam appid side' -Value "$(($Game.ExternalData.SteamIDs[1..($Game.ExternalData.SteamIDs.Count)]) -join ', ')" }
+  }
+  
+
   # Website
-  if ($SteamData.website)
-  { $Template.Wikitext = $Template.Wikitext.Replace('|official site= ', ('|official site= ' + $SteamData.website)) }
+  if ($Game.Website)
+  { $Template.Wikitext = $Template.Wikitext.Replace('|official site= ', ('|official site= ' + $Game.Website)) }
 
   # No Retail
   if ($NoRetail)
   { $Template.Wikitext = $Template.Wikitext.Replace("{{Availability/row| retail | | unknown |  |  | Windows }}`n", '') }
   # Steam
-  elseif ($SteamData)
-  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| steam | $SteamAppId | steam |  |  | $($Platforms -join ', ') }}") }
+  elseif ($Game.ExternalData.SteamIDs)
+  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| steam | $($Game.ExternalData.SteamIDs[0]) | steam |  |  | $($Game.Platforms -join ', ') }}") }
   # Retail
   else
-  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| retail | | unknown |  |  | $($Platforms -join ', ') }}") }
+  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| retail | | unknown |  |  | $($Game.Platforms -join ', ') }}") }
 
   # No Windows
   if ($NoWindows)
@@ -467,8 +648,7 @@ Process
     $Template.Wikitext = $Template.Wikitext.Replace("{{Game data/saves|Windows|}}`n", '')
 
     # Replace Windows in the system requirements with the first supported OS
-    $Template.Wikitext = $Template.Wikitext | SetParameter 'OSfamily' -Value $Platforms[0]
-    #$Template.Wikitext = $Template.Wikitext.Replace('|OSfamily = Windows', "|OSfamily = $($Platforms[0])")
+    $Template.Wikitext = $Template.Wikitext | SetParameter 'OSfamily' -Value $Game.Platforms[0]
   }
 
   if ($InAppPurchases)
@@ -513,62 +693,22 @@ Process
   if ($NoDLCs)
   { $Template.Wikitext = $Template.Wikitext.Replace("`n{{DLC|`n<!-- DLC rows goes below: -->`n`n}}`n", '') }
 
-  elseif ($SteamData.dlc)
-  {
-    # Retrieve info about the DLC using separate requests...
-
-  }
-
-  if ($SteamData)
+  
+  # Steam Community
+  if ($Game.Steam.IDs[0])
   {
     $Template.Wikitext = $Template.Wikitext.Replace('==Availability==', @"
 '''General information'''
-{{mm}} [http://steamcommunity.com/app/$SteamAppId/discussions/ Steam Community Discussions]
+{{mm}} [http://steamcommunity.com/app/$($Game.Steam.IDs[0])/discussions/ Steam Community Discussions]
 
 ==Availability==
 "@)
-
-    # Game Data
-    if ($SteamData.categories.description -contains 'Steam Cloud')
-    { $Template.Wikitext = $Template.Wikitext | SetParameter 'steam cloud' -Value 'true' }
-    else
-    { $Template.Wikitext = $Template.Wikitext | SetParameter 'steam cloud' -Value 'false' }
-
-    # Video
-    if ($SteamData.categories.description -contains 'HDR available')
-    { $Template.Wikitext = $Template.Wikitext | SetParameter 'hdr' -Value 'true' }
-    if ($SteamData.categories.description -contains 'Color Alternatives')
-    { $Template.Wikitext = $Template.Wikitext | SetParameter 'color blind' -Value 'true' }
-
-    # Input
-    if ($SteamData.controller_support -eq 'full')
-    {
-      $Template.Wikitext = $Template.Wikitext | SetParameter 'controller support' -Value 'true'
-      $Template.Wikitext = $Template.Wikitext | SetParameter 'full controller' -Value 'true'
-    } elseif ($SteamData.categories.description -contains 'Partial Controller Support')
-    {
-      $Template.Wikitext = $Template.Wikitext | SetParameter 'controller support' -Value 'true'
-      $Template.Wikitext = $Template.Wikitext | SetParameter 'full controller' -Value 'false'
-    }
-    
-    # Audio
-    if ($SteamData.categories.description -contains 'Custom Volume Controls')
-    { $Template.Wikitext = $Template.Wikitext | SetParameter 'separate volume' -Value 'true' }
-
-    $Sound = @()
-    if ($SteamData.categories.description -contains 'Stereo Sound')
-    { $Sound += 'Stereo' }
-    if ($SteamData.categories.description -contains 'Surround Sound')
-    { $Sound += '5.1' }
-
-    if ($Sound)
-    { $Template.Wikitext = $Template.Wikitext | SetParameter 'surround sound' -Value ($Sound -join ', ') }
   }
 
   # Game data
   $GameDataConfig = @()
   $GameDataSaves  = @()
-  foreach ($Platform in $Platforms)
+  foreach ($Platform in $Game.Platforms)
   {
     $GameDataConfig += "{{Game data/config|$Platform|}}"
     $GameDataSaves  += "{{Game data/saves|$Platform|}}"
@@ -577,9 +717,26 @@ Process
   $Template.Wikitext = $Template.Wikitext -replace '(?m)^\{\{Game data/config\s?\|.*\|?\}\}$', ($GameDataConfig -join "`n")
   $Template.Wikitext = $Template.Wikitext -replace '(?m)^\{\{Game data/saves\s?\|.*\|?\}\}$',  ($GameDataSaves  -join "`n")
 
+
+
+  foreach ($Key in $Game.Video.Keys)
+  { $Template.Wikitext = $Template.Wikitext | SetParameter $Key -Value $Game.Video[$Key] }
+
+  foreach ($Key in $Game.Input.Keys)
+  { $Template.Wikitext = $Template.Wikitext | SetParameter $Key -Value $Game.Input[$Key] }
+
+  foreach ($Key in $Game.Audio.Keys)
+  { $Template.Wikitext = $Template.Wikitext | SetParameter $Key -Value $Game.Audio[$Key] }
+
+
+
+
+
+
+
   # Create page
   if ([string]::IsNullOrWhiteSpace($TargetPage))
-  { $TargetPage = $Name }
+  { $TargetPage = $Game.Name }
 
   if ($WhatIf)
   {
@@ -588,9 +745,9 @@ Process
     [Console]::WriteLine('What if: Performing maintenance on target "' + $TargetPage + '".')
     [Console]::ResetColor()
     return @{
-      Wikitext       = $Template.Wikitext
-      SteamData      = $SteamData
-      SteamStorePage = $SteamStorePage
+      Wikitext = $Template.Wikitext
+      Game     = $Game
+      Steam    = $Steam
     }
   } else {
     return Set-MWPage -Name $TargetPage -Summary 'Created page' -Major -CreateOnly -Content $Template.Wikitext
