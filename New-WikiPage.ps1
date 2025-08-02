@@ -130,7 +130,7 @@ Process
     }
     Audio        = @{
       'separate volume'         = 'unknown'
-      'surround sound'          = ''
+      'surround sound'          = 'unknown'
     }
   }
 
@@ -186,6 +186,37 @@ Process
       [string]$String
     )
     process { return $String -replace ('(?m)^(\|' + (RegexEscape($Parameter)) + '\s*=).*$'), "`$1 $Value" }
+  }
+
+  function SetTemplateParameter
+  {
+    param (
+      [Parameter(Mandatory, Position=0)]
+      [string]$Template,
+
+      [Parameter(Mandatory, Position=1)]
+      [string]$Parameter,
+
+      [Parameter(Mandatory, Position=2)]
+      [AllowEmptyString()]
+      [string]$Value,
+
+      [Parameter(Mandatory, ValueFromPipeline)]
+      [string]$String
+    )
+    
+    process
+    {
+      if ($String -match "(?s){{$Template(.*?)\n\n={1,6}")
+      {
+        $TemplateBody = $Matches[1].Trim()
+        $TemplateRepl = $TemplateBody | SetParameter $Parameter -Value $Value
+        #Write-Verbose "Performing change on '$Template':`nOrg: $TemplateBody`nNew: $TemplateRepl"
+        return $String.Replace($TemplateBody, $TemplateRepl)
+      }
+
+      return $String
+    }
   }
 
   function GetSteamData($AppId)
@@ -616,10 +647,10 @@ Process
 
   if ($Game.ExternalData.SteamIDs)
   {
-    $Template.Wikitext = $Template.Wikitext | SetParameter 'steam appid' -Value "$($Game.ExternalData.SteamIDs[0])"
+    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'steam appid' -Value "$($Game.ExternalData.SteamIDs[0])"
 
     if ($Game.ExternalData.SteamIDs.Count -gt 1)
-    { $Template.Wikitext = $Template.Wikitext | SetParameter 'steam appid side' -Value "$(($Game.ExternalData.SteamIDs[1..($Game.ExternalData.SteamIDs.Count)]) -join ', ')" }
+    { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'steam appid side' -Value "$(($Game.ExternalData.SteamIDs[1..($Game.ExternalData.SteamIDs.Count)]) -join ', ')" }
   }
   
 
@@ -648,25 +679,25 @@ Process
     $Template.Wikitext = $Template.Wikitext.Replace("{{Game data/saves|Windows|}}`n", '')
 
     # Replace Windows in the system requirements with the first supported OS
-    $Template.Wikitext = $Template.Wikitext | SetParameter 'OSfamily' -Value $Game.Platforms[0]
+    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'System requirements' -Parameter 'OSfamily' -Value $Game.Platforms[0]
   }
 
   if ($InAppPurchases)
-  { $Template.Wikitext = $Template.Wikitext | SetParameter 'none' -Value '' }
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Microtransactions' -Parameter 'none' -Value '' }
 
   # Free-to-Play
   if ($FreeToPlay)
   {
     # Infobox game
     $Template.Wikitext = $Template.Wikitext | SetTemplate 'Infobox game/row/taxonomy/monetization' -Value 'Free-to-play'
-    $Template.Wikitext = $Template.Wikitext | SetParameter 'license' -Value 'free-to-play'
+    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'license' -Value 'free-to-play'
 
     # Monetization table
-    $Template.Wikitext = $Template.Wikitext | SetParameter 'one-time game purchase' -Value ''
+    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Monetization' -Parameter 'one-time game purchase' -Value ''
     if ($InAppPurchases)
-    { $Template.Wikitext = $Template.Wikitext | SetParameter 'free-to-play' -Value 'Game is free-to-play with in-app purchases.' }
+    { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Monetization' -Parameter 'free-to-play' -Value 'Game is free-to-play with in-app purchases.' }
     else
-    { $Template.Wikitext = $Template.Wikitext | SetParameter 'free-to-play' -Value 'Game is free-to-play.' }
+    { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Monetization' -Parameter 'free-to-play' -Value 'Game is free-to-play.' }
   }
 
   # Freeware
@@ -674,18 +705,18 @@ Process
   {
     # Infobox game
     $Template.Wikitext = $Template.Wikitext | SetTemplate 'Infobox game/row/taxonomy/monetization' -Value 'Freeware'
-    $Template.Wikitext = $Template.Wikitext | SetParameter 'license' -Value 'freeware'
+    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'license' -Value 'freeware'
 
     # Monetization table
-    $Template.Wikitext = $Template.Wikitext | SetParameter 'one-time game purchase' -Value ''
-    $Template.Wikitext = $Template.Wikitext | SetParameter 'freeware' -Value 'Game is freeware.'
+    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Monetization' -Parameter 'one-time game purchase' -Value ''
+    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Monetization' -Parameter 'freeware' -Value 'Game is freeware.'
   }
 
   # Shareware
   if ($Shareware)
   {
     # Infobox game
-    $Template.Wikitext = $Template.Wikitext | SetParameter 'license' -Value 'shareware'
+    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'license' -Value 'shareware'
     # Assume a shareware title is a one-time purchase as well
   }
 
@@ -720,13 +751,13 @@ Process
 
 
   foreach ($Key in $Game.Video.Keys)
-  { $Template.Wikitext = $Template.Wikitext | SetParameter $Key -Value $Game.Video[$Key] }
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Video' -Parameter $Key -Value $Game.Video[$Key] }
 
   foreach ($Key in $Game.Input.Keys)
-  { $Template.Wikitext = $Template.Wikitext | SetParameter $Key -Value $Game.Input[$Key] }
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Input' -Parameter $Key -Value $Game.Input[$Key] }
 
   foreach ($Key in $Game.Audio.Keys)
-  { $Template.Wikitext = $Template.Wikitext | SetParameter $Key -Value $Game.Audio[$Key] }
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Audio' -Parameter $Key -Value $Game.Audio[$Key] }
 
 
 
