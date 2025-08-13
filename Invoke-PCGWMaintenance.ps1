@@ -79,6 +79,66 @@ Process {
   }
 #endregion
 
+#region Set-Substring
+  Set-Alias -Name Replace-Substring -Value Set-Substring
+  function Set-Substring
+  {
+    [CmdletBinding()]
+    param(
+      [Parameter(Mandatory, ValueFromPipeline)]
+      [string]$InputObject,
+      
+      [Parameter(Mandatory, Position=0)]
+      [string]$Substring,
+
+      [Parameter(Mandatory, Position=1)]
+      [string]$Replacement,
+
+      [Parameter()]
+         [int]$Occurrence = 0, # Positive: from start; Negative: from back.
+
+      [Parameter()]
+      [StringComparison]$Comparison = [StringComparison]::InvariantCultureIgnoreCase
+    )
+    
+    Begin { }
+
+    Process
+    {
+      $Index   = -1
+      $Indexes = @()
+
+      if ($Occurrence -gt 0)
+      {
+        $Occurrence--
+      }
+
+      do
+      {
+        $Index = $InputObject.IndexOf($Substring, 1 + $Index, $Comparison)
+        if ($Index -ne -1)
+        {
+          $Indexes += $Index
+        }
+      } while ($Index -ne -1)
+
+      if ($null  -ne   $Indexes[$Occurrence]) {
+        $Index       = $Indexes[$Occurrence]
+        $InputObject = $InputObject.Remove($Index, $Substring.Length).Insert($Index, $Replacement)
+      } elseif ($Indexes.Count -gt 0) {
+        Write-Verbose "The specified occurrence does not exist."
+      } else {
+        Write-Verbose "No matching substring was found."
+      }
+
+      return $InputObject
+    }
+
+    End { }
+  }
+
+#endregion
+
 #region Export-Metadata
   function Export-Metadata ($Link, $Title, $Date)
   {
@@ -564,8 +624,8 @@ Process {
         $ContentBlock = $Matches[0].Clone()
         $Target       = '}}' # We target the trailing }}
         $NewSection   = "`n$KeyPointsTrim`n}}`n`n"
-        # We need to use a greedy regex -replace to ensure we only replace the last occurance
-        $Replacement  = $ContentBlock -replace "(.*)$Target(.*)", "`$1$NewSection`$2"
+        # We only replace the last occurance
+        $Replacement  = $ContentBlock | Set-Substring -Substring $Target -Replacement $NewSection -Occurrence -1
 
         # Insert the key points at the bottom of the current state section
         $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
@@ -583,8 +643,8 @@ Process {
           $ContentBlock = $Matches[0].Clone()
           $Target       = '}}' # We target the trailing }}
           $NewSection   = "`n|current state = `n$KeyPointsTrim`n}}`n"
-          # We need to use a greedy regex -replace to ensure we only replace the last occurance
-          $Replacement  = $ContentBlock -replace "(.*)$Target(.*)", "`$1$NewSection`$2"
+          # We only replace the last occurance
+          $Replacement  = $ContentBlock | Set-Substring -Substring $Target -Replacement $NewSection -Occurrence -1
 
           # Insert the key points at the bottom of the current state section
           $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
@@ -600,8 +660,8 @@ Process {
           $ContentBlock = $Matches[0].Clone()
           $Target       = '}}' # We target the trailing }}
           $NewSection   = "`n|release history   = `n`n|current state     = `n$KeyPointsTrim`n}}`n"
-          # We need to use a greedy regex -replace to ensure we only replace the last occurance
-          $Replacement  = $ContentBlock -replace "(.*)$Target(.*)", "`$1$NewSection`$2"
+          # We only replace the last occurance
+          $Replacement  = $ContentBlock | Set-Substring -Substring $Target -Replacement $NewSection -Occurrence -1
 
           # Insert the key points at the bottom of the current state section
           $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
