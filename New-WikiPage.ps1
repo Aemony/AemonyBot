@@ -383,11 +383,13 @@ Process
           $Game.Reception.OpenCritic.Url    = [System.Uri]::UnescapeDataString($Matches[2]).Replace('https://opencritic.com/game/', '') -replace '(\d+\/[\w|\d|\-]+).*', '$1'
         }
 
+        #<# Many IGDB review listings are seemingly based on user reviews
         if ($Matches[3] -eq 'IGDB')
         {
           $Game.Reception.IGDB.Rating       = $Matches[1]
           $Game.Reception.IGDB.Url          = [System.Uri]::UnescapeDataString($Matches[2]).Replace('https://www.igdb.com/games/', '') -replace '([\w|\d|\-]+).*', '$1'
         }
+        #>
       }
     }
 
