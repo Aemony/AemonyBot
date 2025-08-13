@@ -590,7 +590,7 @@ Process {
           $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
         }
 
-        # Does the article have an release history section at least ?
+        # Does the article have an introduction section at least ?
         elseif ($Page.Wikitext -match "\|introduction(.|\s)*?(?=(\n'''General information'''|\n==Availability==)\n)")
         {
           # $Matches[0] holds the full match
