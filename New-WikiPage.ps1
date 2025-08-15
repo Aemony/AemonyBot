@@ -59,6 +59,11 @@ Param (
   [switch]$NoWindows,
 
   <#
+    Authentication
+  #>
+  [switch]$Online, # Create the page as well (requires bot password + authentication)
+
+  <#
     Debug
   #>
   [string]$TargetPage,
@@ -68,12 +73,34 @@ Param (
 Begin {
   # Configuration
   $ProgressPreference = 'SilentlyContinue' # Suppress progress bar (speeds up Invoke-WebRequest by a ton)
+  $ScriptLoadedModule = $false
 
   $Templates = @{
     Singleplayer = 'PCGamingWiki:Sample article/Game (singleplayer)'
     Multiplayer  = 'PCGamingWiki:Sample article/Game (multiplayer)'
     Unknown      = 'PCGamingWiki:Sample article/Game (unknown)'
   }
+
+  if ($null -eq (Get-Module -Name 'MediaWiki'))
+  {
+    if ($null -ne (Get-Module -ListAvailable -Name 'MediaWiki'))
+    {
+      Import-Module -Name 'MediaWiki'
+      $ScriptLoadedModule = $true
+    } elseif (Test-Path -Path '.\MediaWiki')
+    {
+      Import-Module -Name '.\MediaWiki'
+      $ScriptLoadedModule = $true
+    }
+  }
+
+  $ApiProperties = @{
+    ApiEndpoint = 'https://www.pcgamingwiki.com/w/api.php'
+     Guest      = (-not $Online)
+     Silent     = $true
+  }
+
+  Connect-MWSession @ApiProperties
 }
 
 Process
@@ -783,8 +810,18 @@ Process
       Steam    = $Steam
     }
   } else {
-    return Set-MWPage -Name $TargetPage -Summary 'Created page' -Major -CreateOnly -Content $Template.Wikitext
+    if ($Online)
+    {
+      return Set-MWPage -Name $TargetPage -Summary 'Created page' -Major -CreateOnly -Content $Template.Wikitext
+    } else {
+      return $Template.Wikitext
+    }
   }
 }
 
-End { }
+End {
+  if ($ScriptLoadedModule)
+  {
+    Remove-Module -Name 'MediaWiki'
+  }
+}
