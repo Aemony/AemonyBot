@@ -56,7 +56,6 @@ Param (
   # Misc
   [switch]$NoRetail,
   [switch]$NoDLCs,
-  [switch]$NoWindows,
 
   <#
     Authentication
@@ -94,28 +93,32 @@ Begin {
     }
   }
 
-  $ApiProperties = @{
-    ApiEndpoint = 'https://www.pcgamingwiki.com/w/api.php'
-     Guest      = (-not $Online)
-     Silent     = $true
-  }
+  if ($null -eq (Get-Module -Name 'MediaWiki'))
+  {
+    $ApiProperties = @{
+      ApiEndpoint = 'https://www.pcgamingwiki.com/w/api.php'
+      Guest      = (-not $Online)
+      Silent     = $true
+    }
 
-  Connect-MWSession @ApiProperties
+    Connect-MWSession @ApiProperties
+  }
 }
 
 Process
 {
+  if ($null -eq (Get-Module -Name 'MediaWiki'))
+  {
+    Write-Warning 'MediaWiki module has not been loaded!'
+    return $null
+  }
+
   # Core object
   $Game = @{
     Name         = ''
     Developers   = @()
     Publishers   = @()
-    ReleaseDates = @{
-      Linux        = ''
-      macOS        = ''
-      Windows      = ''
-    }
-    Platforms    = @()
+    Platforms    = @() # Also holds release dates
     Reception    = @{
       MetaCritic   = @{
         Rating       = ''
@@ -342,14 +345,29 @@ Process
             $Details.release_date.date -ne 'Coming soon')
     { $ReleaseDate = $Details.release_date.date }
 
+    if ($Details.platforms.windows -eq 'true')
+    {
+      $Game.Platforms += @{
+        Name        = 'Windows'
+        ReleaseDate = $ReleaseDate
+      }
+    }
+
     if ($Details.platforms.mac -eq 'true')
-    { $Game.ReleaseDates.macOS   = $ReleaseDate }
+    {
+      $Game.Platforms += @{
+        Name        = 'macOS'
+        ReleaseDate = $ReleaseDate
+      }
+    }
 
     if ($Details.platforms.linux -eq 'true')
-    { $Game.ReleaseDates.Linux   = $ReleaseDate }
-
-    if ($Details.platforms.windows -eq 'true')
-    { $Game.ReleaseDates.Windows = $ReleaseDate }
+    {
+      $Game.Platforms += @{
+        Name        = 'Linux'
+        ReleaseDate = $ReleaseDate
+      }
+    }
 
     # Taxonomy
     <#
@@ -504,6 +522,8 @@ Process
 
   if ($Modes)
   { $Game.Taxonomy.modes = $Modes }
+  else # Steam games
+  { $Modes = $Game.Taxonomy.modes }
 
   if ($Developers)
   { $Game.Developers = $Developers }
@@ -512,14 +532,28 @@ Process
   { $Game.Publishers = $Publishers }
 
   if ($ReleaseDateWindows)
-  { $Game.ReleaseDates.Windows = $ReleaseDateWindows }
+  {
+    $Game.Platforms += @{
+      Name        = 'Windows'
+      ReleaseDate = $ReleaseDateWindows
+    }
+  }
 
   if ($ReleaseDateMacOS)
-  { $Game.ReleaseDates.macOS = $ReleaseDateMacOS }
+  {
+    $Game.Platforms += @{
+      Name        = 'macOS'
+      ReleaseDate = $ReleaseDateMacOS
+    }
+  }
 
   if ($ReleaseDateLinux)
-  { $Game.ReleaseDates.Linux = $ReleaseDateLinux }
-
+  {
+    $Game.Platforms += @{
+      Name        = 'Linux'
+      ReleaseDate = $ReleaseDateLinux
+    }
+  }
 
 
   # Validation
@@ -536,34 +570,13 @@ Process
     return
   }
 
-  if (-not [string]::IsNullOrWhiteSpace($Game.ReleaseDates.macOS))
-  { $Game.Platforms += 'macOS' }
-
-  if (-not [string]::IsNullOrWhiteSpace($Game.ReleaseDates.Linux))
-  { $Game.Platforms += 'Linux' }
-
-  if (-not [string]::IsNullOrWhiteSpace($Game.ReleaseDates.Windows))
-  { $Game.Platforms += 'Windows' }
-
-  if ($Game.Platforms -notcontains 'Windows')
-  { $NoWindows = $true }
-
-  if ($NoWindows)
+  if ($Game.Platforms.Name -notcontains 'Windows' -and
+      $Game.Platforms.Name -notcontains 'macOS'   -and
+      $Game.Platforms.Name -notcontains 'Linux')
   {
-    if ([string]::IsNullOrWhiteSpace($Game.ReleaseDates.Linux) -and
-        [string]::IsNullOrWhiteSpace($Game.ReleaseDates.macOS))
-    {
-      Write-Warning 'A Linux or macOS release date needs to be specified when using -NoWindows!'
-      return
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($Game.ReleaseDates.Windows))
-    {
-      Write-Warning '-NoWindows and -ReleaseDateWindows cannot be used at the same time!'
-      return
-    }
+    Write-Warning 'A Windows, macOS, or Linux release date needs to be specified!'
+    return
   }
-
 
 
   # Processing
@@ -639,40 +652,19 @@ Process
     $Template.Wikitext = $Template.Wikitext.Replace("{{Infobox game/row/publisher|PUBLISHER}}`n", '')
   }
 
-  # Release Date: Windows
-  if (-not [string]::IsNullOrWhiteSpace($ReleaseDateWindows))
+  # Remove Windows release date
+  $Template.Wikitext = $Template.Wikitext.Replace("{{Infobox game/row/date|Windows|TBA}}`n", '')
+
+  # Release Dates
+  foreach ($Platform in $Game.Platforms)
   {
     try {
-      $DateTime = [datetime]::Parse($ReleaseDateWindows)
-      $Template.Wikitext = $Template.Wikitext.Replace('{{Infobox game/row/date|Windows|TBA}}', "{{Infobox game/row/date|Windows|$($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US")))}}")
+      $DateTime = [datetime]::Parse($Platform.ReleaseDate)
+      $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|$($Platform.Name)|$($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US")))}}`n|reception    = ")
     } catch {
-      $Template.Wikitext = $Template.Wikitext.Replace('{{Infobox game/row/date|Windows|TBA}}', "{{Infobox game/row/date|Windows|$ReleaseDateWindows}}")
+      $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|$($Platform.Name)|$($Platform.ReleaseDate)}}`n|reception    = ")
     }
   }
-
-  # Release Date: macOS
-  if (-not [string]::IsNullOrWhiteSpace($ReleaseDateMacOS))
-  {
-    try {
-      $DateTime = [datetime]::Parse($ReleaseDateMacOS)
-      $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|macOS|$($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US")))}}`n|reception    = ")
-    } catch {
-      $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|macOS|$ReleaseDateMacOS}}`n|reception    = ")
-    }
-  }
-
-  # Release Date: Linux
-  if (-not [string]::IsNullOrWhiteSpace($ReleaseDateLinux))
-  {
-    try {
-      $DateTime = [datetime]::Parse($ReleaseDateLinux)
-      $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|Linux|$($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US")))}}`n|reception    = ")
-    } catch {
-      $Template.Wikitext = $Template.Wikitext.Replace('|reception    = ', "{{Infobox game/row/date|Linux|$ReleaseDateLinux}}`n|reception    = ")
-    }
-  }
-
-  
 
   if ($Game.ExternalData.SteamIDs)
   {
@@ -687,28 +679,28 @@ Process
   if ($Game.Website)
   { $Template.Wikitext = $Template.Wikitext.Replace('|official site= ', ('|official site= ' + $Game.Website)) }
 
+  # Move 'Game (unknown)' template in line with the other two
+  $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| store  | id | drm | notes  | keys | Windows }}', '{{Availability/row| retail | | unknown |  |  | Windows }}')
+
   # No Retail
   if ($NoRetail)
   { $Template.Wikitext = $Template.Wikitext.Replace("{{Availability/row| retail | | unknown |  |  | Windows }}`n", '') }
   # Steam
   elseif ($Game.ExternalData.SteamIDs)
-  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| steam | $($Game.ExternalData.SteamIDs[0]) | steam |  |  | $($Game.Platforms -join ', ') }}") }
+  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| steam | $($Game.ExternalData.SteamIDs[0]) | steam |  |  | $($Game.Platforms.Name -join ', ') }}") }
   # Retail
   else
-  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| retail | | unknown |  |  | $($Game.Platforms -join ', ') }}") }
+  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| retail | | unknown |  |  | $($Game.Platforms.Name -join ', ') }}") }
 
   # No Windows
-  if ($NoWindows)
+  if ($Game.Platforms.Name -notcontains 'Windows')
   {
-    # Remove release date
-    $Template.Wikitext = $Template.Wikitext.Replace("{{Infobox game/row/date|Windows|TBA}}`n", '')
-
     # Remove game data
     $Template.Wikitext = $Template.Wikitext.Replace("{{Game data/config|Windows|}}`n", '')
     $Template.Wikitext = $Template.Wikitext.Replace("{{Game data/saves|Windows|}}`n", '')
 
     # Replace Windows in the system requirements with the first supported OS
-    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'System requirements' -Parameter 'OSfamily' -Value $Game.Platforms[0]
+    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'System requirements' -Parameter 'OSfamily' -Value $Game.Platforms[0].Name
   }
 
   if ($InAppPurchases)
@@ -768,7 +760,7 @@ Process
   # Game data
   $GameDataConfig = @()
   $GameDataSaves  = @()
-  foreach ($Platform in $Game.Platforms)
+  foreach ($Platform in $Game.Platforms.Name)
   {
     $GameDataConfig += "{{Game data/config|$Platform|}}"
     $GameDataSaves  += "{{Game data/saves|$Platform|}}"
