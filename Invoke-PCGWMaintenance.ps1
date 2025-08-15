@@ -100,7 +100,7 @@ Process {
     .PARAMETER Comparison
       The string comparison type to use. Defaults to InvariantCultureIgnoreCase.
     .EXAMPLE
-      $ContentBlock | Set-Substring -Substring $Target -Replacement $NewSection -Occurrence -1
+      $ContentBlock | Set-Substring -Substring $Target -NewSubstring $NewSection -Occurrence -1
     .INPUTS
       String to act upon.
     .OUTPUTS
