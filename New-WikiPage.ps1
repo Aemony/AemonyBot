@@ -329,10 +329,8 @@ Process
     if ($Details.categories | Where-Object { $_.description -eq 'Single-player' })
     { $Game.Taxonomy.modes += 'Singleplayer' }
 
-    $Game.Developers = $Details.developers
-    $Pubs = $Details.publishers | Where-Object { $Developers -notcontains $_ }
-    if ($null -ne $Pubs)
-    { $Game.Publishers = $Pubs }
+    $Game.Developers = $Details.developers.Trim()
+    $Game.Publishers = $Details.publishers.Trim() | Where-Object { $Game.Developers -notcontains $_ }
 
     $ReleaseDate   = 'TBA'
 
