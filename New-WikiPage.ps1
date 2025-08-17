@@ -60,7 +60,8 @@ Param (
   <#
     Authentication
   #>
-  [switch]$Online, # Create the page as well (requires bot password + authentication)
+  [switch]$Online,  # Create the page as well (requires bot password + authentication)
+  [switch]$Offline, # Runs locally (default)
 
   <#
     Debug
@@ -112,6 +113,8 @@ Process
     Write-Warning 'MediaWiki module has not been loaded!'
     return $null
   }
+
+  $CoverPath = '.\cover.jpg'
 
   # Core object
   $Game = @{
@@ -254,13 +257,13 @@ Process
     # Extract information from Steam
     Write-Verbose "Steam App ID: $AppId"
 
-    $Details      = $null
+    $Details       = $null
     $PageComObject = $null # ComObject: HTMLFile
 
-    $UAGoogleBot  = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
-    $Session      = New-Object Microsoft.PowerShell.Commands.WebRequestSession # [Microsoft.PowerShell.Commands.WebRequestSession]::new()
-    $CookiesAge   = [System.Net.Cookie]::new('birthtime', '0')
-    $CookiesAdult = [System.Net.Cookie]::new('mature_content', '1')
+    $UAGoogleBot   = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+    $Session       = New-Object Microsoft.PowerShell.Commands.WebRequestSession # [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+    $CookiesAge    = [System.Net.Cookie]::new('birthtime', '0')
+    $CookiesAdult  = [System.Net.Cookie]::new('mature_content', '1')
     $Session.Cookies.Add('https://store.steampowered.com/', $CookiesAge)
     $Session.Cookies.Add('https://store.steampowered.com/', $CookiesAdult)
 
@@ -317,11 +320,27 @@ Process
     [string]$PageContent = $WebPage.Content
     $PageComObject.Write([ref]$PageContent)
 
+    # Steam cover (600x900_2x.jpg)
+    $Link = "https://steamcdn-a.akamaihd.net/steam/apps/$AppId/library_600x900_2x.jpg"
+    try {
+      Write-Verbose "Retrieving $Link"
+      Invoke-WebRequest -Uri $Link -Method GET -UseBasicParsing -DisableKeepAlive -UserAgent $UAGoogleBot -WebSession $Session -OutFile $CoverPath
+    } catch {
+      $StatusCode = $_.Exception.response.StatusCode.value__
+    }
+    
+    if ($StatusCode -ne 200 -or -not (Test-Path $CoverPath))
+    {
+      Write-Warning 'Failed to retrieve game cover from Steam!'
+      return
+    }
+
 
 
     # Parsing the data
 
-    $Game.Name = $Details.name
+    $Game.Name      = $Details.name
+    $Game.Steam.IDs = $AppId
 
     if ($Details.categories | Where-Object { $_.description -eq 'Multi-player' })
     { $Game.Taxonomy.modes += 'Multiplayer' }
@@ -329,8 +348,8 @@ Process
     if ($Details.categories | Where-Object { $_.description -eq 'Single-player' })
     { $Game.Taxonomy.modes += 'Singleplayer' }
 
-    $Game.Developers = $Details.developers.Trim()
-    $Game.Publishers = $Details.publishers.Trim() | Where-Object { $Game.Developers -notcontains $_ }
+    $Game.Developers = @( $Details.developers.Trim() )
+    $Game.Publishers = @( $Details.publishers.Trim() | Where-Object { $Game.Developers -notcontains $_ } )
 
     $ReleaseDate   = 'TBA'
 
@@ -354,7 +373,7 @@ Process
     if ($Details.platforms.mac -eq 'true')
     {
       $Game.Platforms += @{
-        Name        = 'macOS'
+        Name        = 'OS X' # macOS
         ReleaseDate = $ReleaseDate
       }
     }
@@ -540,7 +559,7 @@ Process
   if ($ReleaseDateMacOS)
   {
     $Game.Platforms += @{
-      Name        = 'macOS'
+      Name        = 'OS X' # macOS
       ReleaseDate = $ReleaseDateMacOS
     }
   }
@@ -569,7 +588,7 @@ Process
   }
 
   if ($Game.Platforms.Name -notcontains 'Windows' -and
-      $Game.Platforms.Name -notcontains 'macOS'   -and
+      $Game.Platforms.Name -notcontains 'OS X'   -and
       $Game.Platforms.Name -notcontains 'Linux')
   {
     Write-Warning 'A Windows, macOS, or Linux release date needs to be specified!'
@@ -664,12 +683,12 @@ Process
     }
   }
 
-  if ($Game.ExternalData.SteamIDs)
+  if ($Game.Steam.IDs)
   {
-    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'steam appid' -Value "$($Game.ExternalData.SteamIDs[0])"
+    $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'steam appid' -Value "$($Game.Steam.IDs[0])"
 
-    if ($Game.ExternalData.SteamIDs.Count -gt 1)
-    { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'steam appid side' -Value "$(($Game.ExternalData.SteamIDs[1..($Game.ExternalData.SteamIDs.Count)]) -join ', ')" }
+    if ($Game.Steam.IDs)
+    { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'steam appid side' -Value "$(($Game.Steam.IDs[1..($Game.Steam.IDs.Count)]) -join ', ')" }
   }
   
 
@@ -684,8 +703,8 @@ Process
   if ($NoRetail)
   { $Template.Wikitext = $Template.Wikitext.Replace("{{Availability/row| retail | | unknown |  |  | Windows }}`n", '') }
   # Steam
-  elseif ($Game.ExternalData.SteamIDs)
-  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| steam | $($Game.ExternalData.SteamIDs[0]) | steam |  |  | $($Game.Platforms.Name -join ', ') }}") }
+  elseif ($Game.Steam.IDs)
+  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| steam | $($Game.Steam.IDs[0]) | steam |  |  | $($Game.Platforms.Name -join ', ') }}") }
   # Retail
   else
   { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| retail | | unknown |  |  | $($Game.Platforms.Name -join ', ') }}") }
@@ -745,7 +764,7 @@ Process
 
   
   # Steam Community
-  if ($Game.Steam.IDs[0])
+  if ($Game.Steam.IDs)
   {
     $Template.Wikitext = $Template.Wikitext.Replace('==Availability==', @"
 '''General information'''
@@ -786,26 +805,55 @@ Process
 
   # Create page
   if ([string]::IsNullOrWhiteSpace($TargetPage))
-  { $TargetPage = $Game.Name }
+  {
+    $TargetPage        = $Game.Name
+    $Template.Wikitext = $Template.Wikitext.Replace("$($Game.Name) cover.jpg", "$TargetPage cover.jpg")
+  }
 
-  if ($WhatIf)
+  $Result = [ordered]@{
+    Game     = $Game
+  }
+
+  if ($SteamAppId)
+  { $Result.Steam = $Steam }
+
+  if (Test-Path $CoverPath)
+  {
+    $CoverPath = Get-Item $CoverPath
+    $Result.Cover = $CoverPath.FullName
+  }
+
+  $Result.Wikitext = $Template.Wikitext
+
+  # -Online
+  if ($Online)
+  {
+    # Upload cover first (needed for initial page rendering)
+    if ($null -ne $Result.Cover)
+    {
+      $Result.File = Import-MWFile -Name "$TargetPage cover.jpg" -File $CoverPath.FullName -IgnoreWarnings
+      Remove-Item -Path $CoverPath.FullName -Force
+    }
+
+    $Result.Page = Set-MWPage -Name  $TargetPage -Summary 'Created page' -Major -CreateOnly -Content $Template.Wikitext
+
+    return $Result
+  }
+
+  # -WhatIf
+  elseif ($WhatIf)
   {
     [Console]::BackgroundColor = 'Black'
     [Console]::ForegroundColor = 'Yellow'
     [Console]::WriteLine('What if: Performing maintenance on target "' + $TargetPage + '".')
     [Console]::ResetColor()
-    return @{
-      Wikitext = $Template.Wikitext
-      Game     = $Game
-      Steam    = $Steam
-    }
-  } else {
-    if ($Online)
-    {
-      return Set-MWPage -Name $TargetPage -Summary 'Created page' -Major -CreateOnly -Content $Template.Wikitext
-    } else {
-      return $Template.Wikitext
-    }
+
+    return $Result
+  }
+  
+  # -Offline (default)
+  else {
+    return $Result
   }
 }
 
