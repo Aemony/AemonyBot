@@ -150,9 +150,9 @@ Process
     Website      = ''
     Steam        = @{
       IDs          = @()
-     'steam cloud' = 'unknown'
     }
     DLCs         = @()
+    Cloud        = @{}
     Video        = @{
      'hdr'                      = 'unknown'
      'color blind'              = 'unknown'
@@ -468,7 +468,9 @@ Process
 
     # Game Data
     if ($Details.categories.description -contains 'Steam Cloud')
-    { $Game.Steam.'steam cloud'        = 'true' }
+    { $Game.Cloud.'steam cloud'        = 'true' }
+    else
+    { $Game.Cloud.'steam cloud'        = 'unknown' }
 
     # Video
     if ($Details.categories.description -contains 'HDR available')
@@ -787,6 +789,8 @@ Process
   $Template.Wikitext = $Template.Wikitext -replace '(?m)^\{\{Game data/saves\s?\|.*\|?\}\}$',  ($GameDataSaves  -join "`n")
 
 
+  foreach ($Key in $Game.Cloud.Keys)
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Save game cloud syncing' -Parameter $Key -Value $Game.Cloud[$Key] }
 
   foreach ($Key in $Game.Video.Keys)
   { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Video' -Parameter $Key -Value $Game.Video[$Key] }
