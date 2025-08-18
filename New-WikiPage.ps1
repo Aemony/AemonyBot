@@ -32,16 +32,10 @@ Param (
   [string]$ReleaseDateMacOS,
 
   <#
-    Steam ID
+    Steam ID / URL
   #>
-  [Parameter(Mandatory, ParameterSetName = 'SteamId')]
-  [int]$SteamAppId = 0,
-
-  <#
-    Steam URL
-  #>
-  [Parameter(Mandatory, ParameterSetName = 'SteamUrl')]
-  [string]$SteamUrl,
+  [Parameter(Mandatory, ParameterSetName = 'Steam')]
+  [string]$Steam,
 
   <#
     Generic flags
@@ -116,22 +110,52 @@ Process
 
   $CoverPath = '.\cover.jpg'
 
+  # Sanitize input
+  $KnownDRMs = [PSCustomObject]@{
+    'Denuvo'                  = 'Denuvo Anti-Tamper'
+    'Denuvo Anti-Tamper'      = 'Denuvo Anti-Tamper'
+  }
+
+  # Sanitize input
+  $KnownACs = [PSCustomObject]@{
+    'EAC'                      = 'Easy Anti-Cheat'
+    'Easy AntiCheat'           = 'Easy Anti-Cheat'
+    'Easy Anti-Cheat'          = 'Easy Anti-Cheat'
+    'BattlEye'                 = 'BattlEye'
+    'NGS'                      = 'Nexon Game Security'
+    'Nexon Game Security'      = 'Nexon Game Security'
+    'NGS(Nexon Game Security)' = 'Nexon Game Security'
+    'ACE'                      = 'Anti-Cheat Expert'
+    'AntiCheat Expert'         = 'Anti-Cheat Expert'
+    'Anti-Cheat Expert'        = 'Anti-Cheat Expert'
+    'Anti-Cheat Expert (ACE)'  = 'Anti-Cheat Expert'
+    'EA AC'                    = 'EA Javelin'
+    'EA AntiCheat'             = 'EA Javelin'
+    'EA Anti-Cheat'            = 'EA Javelin'
+    'EA Javelin Anticheat'     = 'EA Javelin'
+    'EA Javelin Anti-Cheat'    = 'EA Javelin'
+    'GameGuard'                = 'nProtect GameGuard'
+    'nProtect GameGuard'       = 'nProtect GameGuard'
+    'Denuvo'                   = 'Denuvo Anti-Cheat'
+    'Denuvo Anti-Cheat'        = 'Denuvo Anti-Cheat'
+  }
+
   # Core object
-  $Game = @{
+  $Game = [PSCustomObject]@{
     Name         = ''
     Developers   = @()
     Publishers   = @()
     Platforms    = @() # Also holds release dates
     Reception    = @{
-      MetaCritic   = @{
+      MetaCritic   = [PSCustomObject]@{
         Rating       = ''
         URL          = ''
       }
-      OpenCritic   = @{
+      OpenCritic   = [PSCustomObject]@{
         Rating       = ''
         URL          = ''
       }
-      IGDB         = @{
+      IGDB         = [PSCustomObject]@{
         Rating       = ''
         URL          = ''
       }
@@ -150,6 +174,7 @@ Process
     Website      = ''
     Steam        = @{
       IDs          = @()
+      DRMs         = @()
     }
     DLCs         = @()
     Cloud        = @{}
@@ -164,6 +189,18 @@ Process
     Audio        = @{
       'separate volume'         = 'unknown'
       'surround sound'          = 'unknown'
+    }
+    Localizations= @()
+    Network      = @{}
+    VR           = @{}
+    API          = @{
+      'direct3d versions'       = @()
+     #'vulkan versions'         = ''
+    }
+    Middleware   = @{
+      'physics'                 = @()
+      'multiplayer'             = @()
+      'anticheat'               = @()
     }
   }
 
@@ -287,14 +324,13 @@ Process
 
     if ($Json.$AppId.success -ne 'true')
     {
-      Write-Warning 'Failed to parse Json from Steam!'
+      Write-Warning 'Failed to parse game json from Steam!'
       return
     }
 
     $Details = $Json.$AppId.data
-    $Type = $Details.type
 
-    if ($Type -ne 'game')
+    if ($Details.type -ne 'game')
     {
       Write-Warning "$AppId is not a game!"
       return
@@ -321,6 +357,7 @@ Process
     $PageComObject.Write([ref]$PageContent)
 
     # Steam cover (600x900_2x.jpg)
+    # Safe to use: "All capsule images (store and library) must have PG-13 appropriate artwork."
     $Link = "https://steamcdn-a.akamaihd.net/steam/apps/$AppId/library_600x900_2x.jpg"
     try {
       Write-Verbose "Retrieving $Link"
@@ -329,27 +366,42 @@ Process
       $StatusCode = $_.Exception.response.StatusCode.value__
     }
     
+    # This can happen, but usually only for really new games
     if ($StatusCode -ne 200 -or -not (Test-Path $CoverPath))
-    {
-      Write-Warning 'Failed to retrieve game cover from Steam!'
-      return
-    }
+    { Write-Warning 'Failed to retrieve game cover from Steam!' }
 
 
 
     # Parsing the data
-
     $Game.Name      = $Details.name
-    $Game.Steam.IDs = $AppId
+    $Game.Steam.IDs = @($AppId)
 
-    if ($Details.categories | Where-Object { $_.description -eq 'Multi-player' })
+    if ($Details.categories.description -contains 'Multi-player')
     { $Game.Taxonomy.modes += 'Multiplayer' }
     
-    if ($Details.categories | Where-Object { $_.description -eq 'Single-player' })
+    if ($Details.categories.description -contains 'Single-player')
     { $Game.Taxonomy.modes += 'Singleplayer' }
 
     $Game.Developers = @( $Details.developers.Trim() )
     $Game.Publishers = @( $Details.publishers.Trim() | Where-Object { $Game.Developers -notcontains $_ } )
+
+    if ($null -ne $Details.drm_notice)
+    {
+      foreach ($DRM in @( $Details.drm_notice.Trim() ))
+      {
+        if ($KnownDRMs.Keys -contains $DRM)
+        { $Game.Steam.DRMs             += $KnownDRMs[$DRM] }
+        elseif ($KnownACs.Keys -contains $DRM)
+        { $Game.Middleware.'anticheat' += $KnownACs[$DRM] }
+        else
+        { $Game.Steam.DRMs             += $DRM }
+      }
+    }
+
+    if ($null -ne $Details.ext_user_account_notice)
+    {
+      $Game.Steam.DRMs += 'Account'
+    }
 
     $ReleaseDate   = 'TBA'
 
@@ -364,7 +416,7 @@ Process
 
     if ($Details.platforms.windows -eq 'true')
     {
-      $Game.Platforms += @{
+      $Game.Platforms += [PSCustomObject]@{
         Name        = 'Windows'
         ReleaseDate = $ReleaseDate
       }
@@ -372,7 +424,7 @@ Process
 
     if ($Details.platforms.mac -eq 'true')
     {
-      $Game.Platforms += @{
+      $Game.Platforms += [PSCustomObject]@{
         Name        = 'OS X' # macOS
         ReleaseDate = $ReleaseDate
       }
@@ -380,7 +432,7 @@ Process
 
     if ($Details.platforms.linux -eq 'true')
     {
-      $Game.Platforms += @{
+      $Game.Platforms += [PSCustomObject]@{
         Name        = 'Linux'
         ReleaseDate = $ReleaseDate
       }
@@ -416,7 +468,7 @@ Process
 
         if ($Details.categories.description -contains $TranslatedValue -or
             $Details.genres.description     -contains $TranslatedValue -or
-            $PopularTags                      -contains $TranslatedValue)
+            $PopularTags                    -contains $TranslatedValue)
         { $Values += $Value }
       }
       
@@ -430,7 +482,7 @@ Process
     if ($Reviews = $PageComObject.getElementsByName('game_area_reviews') | Select-Object -Expand 'innerHtml')
     {
       $Part1  = RegexEscape('<a href="https://steamcommunity.com/linkfilter/?u=')
-      $Part2 = RegexEscape('" rel=" noopener" target=_blank>')
+      $Part2  = RegexEscape('" rel=" noopener" target=_blank>')
       $Part3  = RegexEscape('</a>')
       ($Reviews -split "<br>") | Where-Object { $_ -match "^(\d+)\s.\s$Part1(.*)$Part2([\w\s]+)$Part3$" } | ForEach-Object {
         if ($Matches[3] -eq 'MetaCritic')
@@ -488,10 +540,16 @@ Process
       $Game.Input.'controller support' = 'true'
       $Game.Input.'full controller'    = 'false'
     }
+
+    if ($Details.categories.description -contains 'Tracked Controller Support')
+    { $Game.Input.'tracked motion controllers' = 'true' }
     
     # Audio
     if ($Details.categories.description -contains 'Custom Volume Controls')
     { $Game.Audio.'separate volume'    = 'true' }
+    
+    if ($Details.categories.description -contains 'Captions available')
+    { $Game.Audio.'subtitles'          = 'true' }
 
     $Sound = @()
     if ($Details.categories.description -contains 'Stereo Sound')
@@ -502,6 +560,86 @@ Process
     if ($Sound)
     { $Game.Audio.'surround sound'     = ($Sound -join ', ') }
 
+    # Localization
+    foreach ($L10nRow in $PageComObject.getElementsByClassName('game_language_options').item(0).children(0).children)
+    {
+      # Skip first row
+      if ($L10nRow.innerText -like "*Full Audio*")
+      { continue }
+
+      $Game.Localizations += [PSCustomObject]@{
+        Language  =            $L10nRow.children(0).innerText.Trim()
+        Interface = ($null -ne $L10nRow.children(1).innerText)
+        Audio     = ($null -ne $L10nRow.children(2).innerText)
+        Subtitles = ($null -ne $L10nRow.children(3).innerText)
+      }
+    }
+
+    # VR
+    if ($Details.categories.description -contains 'VR Supported')
+    { $Game.VR.'vr only'               = 'false' }
+
+    if ($Details.categories.description -contains 'VR Only')
+    { $Game.VR.'vr only'               = 'true' }
+
+    # DLCs
+    foreach ($DlcId in $Details.dlc)
+    {
+      Start-Sleep 1
+
+      $Link = "https://store.steampowered.com/api/appdetails/?appids=$DlcId&l=english"
+      try {
+        Write-Verbose "Retrieving $Link"
+        $WebPage    = Invoke-WebRequest -Uri $Link -Method GET -UseBasicParsing -DisableKeepAlive -UserAgent $UAGoogleBot -WebSession $Session
+        $StatusCode = $WebPage.StatusCode
+      } catch {
+        $StatusCode = $_.Exception.response.StatusCode.value__
+      }
+      
+      if ($StatusCode -ne 200)
+      {
+        Write-Warning 'Failed to retrieve DLC details from Steam!'
+        return
+      }
+
+      $Json = ConvertFrom-Json $WebPage.Content
+
+      if ($Json.$DlcId.success -ne 'true')
+      {
+        Write-Warning 'Failed to parse DLC json from Steam!'
+        return
+      }
+
+      $DlcDetails = $Json.$DlcId.data
+
+      $Game.DLCs += [PSCustomObject]@{
+        Type  = $DlcDetails.type
+        Name  = $DlcDetails.name
+        Free  = $DlcDetails.is_free
+        Notes = if ($DlcDetails.is_free) { 'Free' } else { '' }
+      }
+    }
+    
+    # User + Kernel Anti-Cheat
+    if ($ACs = $PageComObject.getElementsByClassName('anticheat_name'))
+    {
+      foreach ($AC in $ACs | Select-Object -Expand 'innerHtml')
+      {
+        # Removes <span class="anticheat_uninstalls"> - Requires manual removal after game uninstall</span>
+        $Uninstall = $PageComObject.getElementsByClassName('anticheat_uninstalls') | Select-Object -Expand 'outerHtml'
+        if ($Uninstall)
+        { $AC = $AC.Replace($Uninstall, '') }
+
+        if ($KnownACs.Keys -contains $AC)
+        { $Game.Middleware.'anticheat' += $KnownACs[$AC] }
+        elseif ($KnownDRMs.Keys -contains $AC)
+        { $Game.Steam.DRMs             += $KnownDRMs[$AC] }
+        else
+        { $Game.Middleware.'anticheat' += $AC }
+      }
+    }
+
+    # Return the resulting object
     return @{
       Details = $Details
       Store   = @{
@@ -519,11 +657,9 @@ Process
   #>
 
   # Initialization: Steam Game
+  $Steam = ($Steam -replace '(?m)^([^\d]+\/app\/)(\d+)(\/?.*)', '$2')
 
-  if (-not [string]::IsNullOrWhiteSpace($SteamUrl))
-  { $SteamAppId = ($SteamUrl -replace '(?m)^([^\d]+\/app\/)(\d+)(\/?.*)', '$2') }
-
-  $Steam = @{
+  $SteamApp = @{
     Details = ''
     Store   = @{
       Page      = ''
@@ -531,8 +667,8 @@ Process
     }
   }
 
-  if ($SteamAppId -ne 0)
-  { $Steam = GetSteamData ($SteamAppId) }
+  if (-not [string]::IsNullOrWhiteSpace($Steam))
+  { $SteamApp = GetSteamData ($Steam) }
 
   # Initialization: Generic Game
 
@@ -552,7 +688,7 @@ Process
 
   if ($ReleaseDateWindows)
   {
-    $Game.Platforms += @{
+    $Game.Platforms += [PSCustomObject]@{
       Name        = 'Windows'
       ReleaseDate = $ReleaseDateWindows
     }
@@ -560,7 +696,7 @@ Process
 
   if ($ReleaseDateMacOS)
   {
-    $Game.Platforms += @{
+    $Game.Platforms += [PSCustomObject]@{
       Name        = 'OS X' # macOS
       ReleaseDate = $ReleaseDateMacOS
     }
@@ -568,7 +704,7 @@ Process
 
   if ($ReleaseDateLinux)
   {
-    $Game.Platforms += @{
+    $Game.Platforms += [PSCustomObject]@{
       Name        = 'Linux'
       ReleaseDate = $ReleaseDateLinux
     }
@@ -599,11 +735,30 @@ Process
 
 
   # Processing
-  $Game.Name         = $Game.Name.Replace('™', '')
-  $Game.Name         = $Game.Name.Replace('®', '')
-  $Game.Name         = $Game.Name.Replace('©', '')
+
+  # Trim game name
+  $Game.Name         = $Game.Name.Replace([string][char]0x2122, '') # ™
+  $Game.Name         = $Game.Name.Replace([string][char]0x00AE, '') # ®
+  $Game.Name         = $Game.Name.Replace([string][char]0x00A9, '') # ©
   $Game.Name         = $Game.Name.Replace(': ', ' - ')
   $Game.Name         = $Game.Name.Replace(':', '')
+  $Game.Name         = $Game.Name.Trim(' - ')
+  $Game.Name         = $Game.Name.Trim()
+
+  # Trim DLC names
+  foreach ($DlcObject in $Game.DLCs)
+  {
+    $DlcObject.Name = $DlcObject.Name.Replace($Game.Name, '')
+    $DlcObject.Name = $DlcObject.Name.Replace([string][char]0x2122, '') # ™
+    $DlcObject.Name = $DlcObject.Name.Replace([string][char]0x00AE, '') # ®
+    $DlcObject.Name = $DlcObject.Name.Replace([string][char]0x00A9, '') # ©
+    $DlcObject.Name = $DlcObject.Name.Replace(': ', ' - ')
+    $DlcObject.Name = $DlcObject.Name.Replace(':', ' ')
+    $DlcObject.Name = $DlcObject.Name.Replace('  ', ' ')
+    $DlcObject.Name = $DlcObject.Name.Replace($Game.Name, '')
+    $DlcObject.Name = $DlcObject.Name.Trim(' - ')
+    $DlcObject.Name = $DlcObject.Name.Trim()
+  }
 
   $Game.Developers   = $Game.Developers -replace '(?:,?\s|,)(?:Inc|Ltd|GmbH|S\.?A|LLC|V\.?O\.?F|AB)\.?$', ''
   if ($Game.Publishers)
@@ -615,6 +770,12 @@ Process
   $TemplateName      = if ($Modes) { $Modes[0] } else { 'Unknown' }
   $Template          = Get-MWPage -PageName $Templates[$TemplateName] -Wikitext
   $Template.Wikitext = $Template.Wikitext.Replace('GAME TITLE', $Game.Name)
+
+  if ($null -ne $Game.VR.'vr only')
+  {
+    $VRSection = (Get-MWPage 'PCGamingWiki:Sample article/Game (unknown)').Sections | Where-Object Line -eq 'VR support' | Get-MWSection -Wikitext | Select-Object -Expand Wikitext
+    $Template.Wikitext = $Template.Wikitext.Replace('==Other information==', "$VRSection`n`n==Other information==")
+  }
 
   # Taxonomy
   <#
@@ -706,7 +867,15 @@ Process
   { $Template.Wikitext = $Template.Wikitext.Replace("{{Availability/row| retail | | unknown |  |  | Windows }}`n", '') }
   # Steam
   elseif ($Game.Steam.IDs)
-  { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| steam | $($Game.Steam.IDs[0]) | steam |  |  | $($Game.Platforms.Name -join ', ') }}") }
+  {
+    $Notes = @()
+
+    foreach ($DRM in $Game.Steam.DRMs)
+    { $Notes += "{{DRM|$DRM}}" }
+    $Notes = $Notes -join ', '
+
+    $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| steam | $($Game.Steam.IDs[0]) | steam | $Notes | | $($Game.Platforms.Name -join ', ') }}")
+  }
   # Retail
   else
   { $Template.Wikitext = $Template.Wikitext.Replace('{{Availability/row| retail | | unknown |  |  | Windows }}', "{{Availability/row| retail | | unknown |  |  | $($Game.Platforms.Name -join ', ') }}") }
@@ -760,11 +929,10 @@ Process
     # Assume a shareware title is a one-time purchase as well
   }
 
-  # No DLCs
-  if ($NoDLCs)
-  { $Template.Wikitext = $Template.Wikitext.Replace("`n{{DLC|`n<!-- DLC rows goes below: -->`n`n}}`n", '') }
+  # Paid DLCs
+  if ($Game.DLCs.Free -contains $false)
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Monetization' -Parameter 'dlc' -Value 'Game offers paid DLCs.' }
 
-  
   # Steam Community
   if ($Game.Steam.IDs)
   {
@@ -775,6 +943,20 @@ Process
 ==Availability==
 "@)
   }
+
+  # DLCs
+  $DlcEntry = @"
+{{{{DLC/row| {0} | {1} | {2} }}}}`n
+"@
+  $DlcRows = ''
+
+  foreach ($Dlc in ($Game.DLCs | Where-Object Type -ne 'music'))
+  { $DlcRows += $DlcEntry -f $Dlc.Name, $Dlc.Notes, ($Game.Platforms.Name -join ', ') }
+
+  if ($Game.DLCs.Count -gt 0)
+  { $DlcRows = "{{DLC|`n$DlcRows}}" }
+
+  $Template.Wikitext = $Template.Wikitext -replace '\{\{DLC\|[\s\-\<\>\!\w\:]*?\}\}', $DlcRows
 
   # Game data
   $GameDataConfig = @()
@@ -788,18 +970,52 @@ Process
   $Template.Wikitext = $Template.Wikitext -replace '(?m)^\{\{Game data/config\s?\|.*\|?\}\}$', ($GameDataConfig -join "`n")
   $Template.Wikitext = $Template.Wikitext -replace '(?m)^\{\{Game data/saves\s?\|.*\|?\}\}$',  ($GameDataSaves  -join "`n")
 
-
+  # Cloud
   foreach ($Key in $Game.Cloud.Keys)
   { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Save game cloud syncing' -Parameter $Key -Value $Game.Cloud[$Key] }
 
+  # Video
   foreach ($Key in $Game.Video.Keys)
-  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Video' -Parameter $Key -Value $Game.Video[$Key] }
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Video'      -Parameter $Key -Value $Game.Video[$Key] }
 
+  # Input
   foreach ($Key in $Game.Input.Keys)
-  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Input' -Parameter $Key -Value $Game.Input[$Key] }
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Input'      -Parameter $Key -Value $Game.Input[$Key] }
 
+  # Audio
   foreach ($Key in $Game.Audio.Keys)
-  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Audio' -Parameter $Key -Value $Game.Audio[$Key] }
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Audio'      -Parameter $Key -Value $Game.Audio[$Key] }
+
+  # Localization
+  $L10nEntry = @"
+{{{{L10n/switch
+ |language  = {0}
+ |interface = {1}
+ |audio     = {2}
+ |subtitles = {3}
+ |notes     =
+ |fan       =
+ |ref       =
+}}}}
+"@
+  $L10nRows = ''
+
+  foreach ($L10n in $Game.Localizations)
+  { $L10nRows += $L10nEntry -f $L10n.Language, $L10n.Interface, $L10n.Audio, $L10n.Subtitles }
+
+  $Template.Wikitext = $Template.Wikitext -replace '\{\{L10n\/switch[\s\|\w=]*?\}\}', $L10nRows
+
+  # VR
+  foreach ($Key in $Game.VR.Keys)
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'VR support' -Parameter $Key -Value $Game.VR[$Key] }
+
+  # API
+  foreach ($Key in $Game.API.Keys)
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'API'        -Parameter $Key -Value ($Game.API[$Key] -join ', ') }
+
+  # Middleware
+  foreach ($Key in $Game.Middleware.Keys)
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Middleware' -Parameter $Key -Value ($Game.Middleware[$Key] -join ', ') }
 
 
 
@@ -818,8 +1034,8 @@ Process
     Game     = $Game
   }
 
-  if ($SteamAppId)
-  { $Result.Steam = $Steam }
+  if ($Steam)
+  { $Result.Steam = $SteamApp }
 
   if (Test-Path $CoverPath)
   {
@@ -839,7 +1055,7 @@ Process
       Remove-Item -Path $CoverPath.FullName -Force
     }
 
-    $Result.Page = Set-MWPage -Name  $TargetPage -Summary 'Created page' -Major -CreateOnly -Content $Template.Wikitext
+    $Result.Page = Set-MWPage -Name  $TargetPage -Major -CreateOnly -Content $Template.Wikitext
 
     return $Result
   }
