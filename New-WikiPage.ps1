@@ -382,12 +382,6 @@ Process
     $Game.Name      = $Details.name
     $Game.Steam.IDs = @($AppId)
 
-    if ($Details.categories.description -contains 'Multi-player')
-    { $Game.Taxonomy.modes += 'Multiplayer' }
-    
-    if ($Details.categories.description -contains 'Single-player')
-    { $Game.Taxonomy.modes += 'Singleplayer' }
-
     $Game.Developers += $Details.developers.Trim()
     $Game.Publishers += $Details.publishers.Trim() | Where-Object { $Game.Developers -notcontains $_ }
 
@@ -445,17 +439,6 @@ Process
     }
 
     # Taxonomy
-    <#
-      {{Infobox game/row/taxonomy/pacing            | }}
-      {{Infobox game/row/taxonomy/perspectives      | }}
-      {{Infobox game/row/taxonomy/controls          | }}
-      {{Infobox game/row/taxonomy/genres            | }}
-      {{Infobox game/row/taxonomy/sports            | }}
-      {{Infobox game/row/taxonomy/vehicles          | }}
-      {{Infobox game/row/taxonomy/art styles        | }}
-      {{Infobox game/row/taxonomy/themes            | }}
-    #>
-
     $PopularTags = $PageComObject.getElementsByClassName('app_tag') | Select-Object -Expand 'innerText'
     $PopularTags = $PopularTags | Where-Object { $_ -ne '+' }
 
@@ -830,7 +813,6 @@ Process
     {{Infobox game/row/taxonomy/art styles        | }}
     {{Infobox game/row/taxonomy/themes            | }}
   #>
-
   foreach ($Key in $Game.Taxonomy.Keys)
   {
     $Values = $Game.Taxonomy[$Key]
