@@ -388,8 +388,8 @@ Process
     if ($Details.categories.description -contains 'Single-player')
     { $Game.Taxonomy.modes += 'Singleplayer' }
 
-    $Game.Developers = @( $Details.developers.Trim() )
-    $Game.Publishers = @( $Details.publishers.Trim() | Where-Object { $Game.Developers -notcontains $_ } )
+    $Game.Developers += $Details.developers.Trim()
+    $Game.Publishers += $Details.publishers.Trim() | Where-Object { $Game.Developers -notcontains $_ }
 
     if ($null -ne $Details.drm_notice)
     {
@@ -728,10 +728,10 @@ Process
   { $Modes = $Game.Taxonomy.modes }
 
   if ($Developers)
-  { $Game.Developers = $Developers }
+  { $Game.Developers += $Developers }
 
   if ($Publishers)
-  { $Game.Publishers = $Publishers }
+  { $Game.Publishers += $Publishers }
 
   if ($ReleaseDateWindows)
   {
@@ -856,27 +856,14 @@ Process
   $Template.Wikitext = $Template.Wikitext | SetTemplate 'Infobox game/row/taxonomy/series' -Value ($Game.Series -join ', ')
 
   # Developer
-  $Template.Wikitext = $Template.Wikitext.Replace('DEVELOPER', $Game.Developers[0])
-
-  if ($Game.Developers.Count -gt 1)
-  {
-    foreach ($Developer in $Game.Developers)
-    { $Template.Wikitext = $Template.Wikitext.Replace('|publishers   = ', "{{Infobox game/row/developer|$Developer}}`n|publishers   = ") }
-  }
+  $Template.Wikitext = $Template.Wikitext.Replace("{{Infobox game/row/developer|DEVELOPER}}`n", '')
+  foreach ($Developer in $Game.Developers)
+  { $Template.Wikitext = $Template.Wikitext.Replace('|publishers   = ', "{{Infobox game/row/developer|$Developer}}`n|publishers   = ") }
 
   # Publisher
-  if (-not [string]::IsNullOrWhiteSpace($Game.Publishers))
-  {
-    $Template.Wikitext = $Template.Wikitext.Replace('PUBLISHER', $Game.Publishers[0])
-
-    if ($Game.Publishers.Count -gt 1)
-    {
-      foreach ($Publisher in $Game.Publishers)
-      { $Template.Wikitext = $Template.Wikitext.Replace('|publishers   = ', "{{Infobox game/row/developer|$Publisher}}`n|publishers   = ") }
-    }
-  } else {
-    $Template.Wikitext = $Template.Wikitext.Replace("{{Infobox game/row/publisher|PUBLISHER}}`n", '')
-  }
+  $Template.Wikitext = $Template.Wikitext.Replace("{{Infobox game/row/publisher|PUBLISHER}}`n", '')
+  foreach ($Publisher in $Game.Publishers)
+  { $Template.Wikitext = $Template.Wikitext.Replace('|engines      = ', "{{Infobox game/row/publisher|$Publisher}}`n|engines      = ") }
 
   # Remove Windows release date
   $Template.Wikitext = $Template.Wikitext.Replace("{{Infobox game/row/date|Windows|TBA}}`n", '')
@@ -897,12 +884,10 @@ Process
   {
     if (-not [string]::IsNullOrEmpty($Game.Reception.$Key.Rating))
     {
-      $Pattern           = "$Key|link|rating"
       $Link              = $Game.Reception.$Key.Link
       $Rating            = $Game.Reception.$Key.Rating
+      $Pattern           = "$Key|link|rating"
       $Replacement       = "$Key|$Link|$Rating"
-      Write-Host $Pattern
-      Write-Host $Replacement
       $Template.Wikitext = $Template.Wikitext.Replace($Pattern, $Replacement)
     }
   }
