@@ -148,17 +148,17 @@ Process
     Publishers   = @()
     Platforms    = @() # Also holds release dates
     Reception    = @{
-      MetaCritic   = [PSCustomObject]@{
+      Metacritic   = [PSCustomObject]@{
         Rating       = ''
-        URL          = ''
+        Link         = ''
       }
       OpenCritic   = [PSCustomObject]@{
         Rating       = ''
-        URL          = ''
+        Link         = ''
       }
       IGDB         = [PSCustomObject]@{
         Rating       = ''
-        URL          = ''
+        Link         = ''
       }
     }
     Taxonomy     = @{
@@ -485,29 +485,39 @@ Process
     # IGDB      : https://store.steampowered.com/app/1814770/Tall_Poppy/
     # OpenCritic: https://store.steampowered.com/app/1561340/Berserk_Boy/
     # MetaCritic: https://store.steampowered.com/app/1561340/Berserk_Boy/
+
+    # AppDetails
+    # metacritic	{ score: 78, url: "https://www.metacritic.com/game/pc/lego-star-wars-the-skywalker-saga?ftag=MCD-06-10aaa1f" }
+    if ($Details.metacritic)
+    {
+      $Game.Reception.Metacritic.Rating = $Details.metacritic.score
+      $Game.Reception.Metacritic.Link   = [System.Uri]::UnescapeDataString($Details.metacritic.url).Replace('https://www.metacritic.com/game/', '') -replace '(?:pc/)?([\w|\d|\-]+).*', '$1'
+    }
+
+    # Store Page
     if ($Reviews = $PageComObject.getElementsByName('game_area_reviews') | Select-Object -Expand 'innerHtml')
     {
       $Part1  = RegexEscape('<a href="https://steamcommunity.com/linkfilter/?u=')
       $Part2  = RegexEscape('" rel=" noopener" target=_blank>')
       $Part3  = RegexEscape('</a>')
       ($Reviews -split "<br>") | Where-Object { $_ -match "^(\d+)\s.\s$Part1(.*)$Part2([\w\s]+)$Part3$" } | ForEach-Object {
-        if ($Matches[3] -eq 'MetaCritic')
+        if ($Matches[3] -eq 'MetaCritic' -and [string]::IsNullOrEmpty($Game.Reception.Metacritic.Rating))
         {
-          $Game.Reception.MetaCritic.Rating = $Matches[1]
-          $Game.Reception.MetaCritic.Url    = [System.Uri]::UnescapeDataString($Matches[2]).Replace('https://www.metacritic.com/game/', '') -replace '([\w|\d|\-]+).*', '$1'
+          $Game.Reception.Metacritic.Rating = $Matches[1]
+          $Game.Reception.Metacritic.Link   = [System.Uri]::UnescapeDataString($Matches[2]).Replace('https://www.metacritic.com/game/', '') -replace '(?:pc/)?([\w|\d|\-]+).*', '$1'
         }
 
         if ($Matches[3] -eq 'OpenCritic')
         {
           $Game.Reception.OpenCritic.Rating = $Matches[1]
-          $Game.Reception.OpenCritic.Url    = [System.Uri]::UnescapeDataString($Matches[2]).Replace('https://opencritic.com/game/', '') -replace '(\d+\/[\w|\d|\-]+).*', '$1'
+          $Game.Reception.OpenCritic.Link   = [System.Uri]::UnescapeDataString($Matches[2]).Replace('https://opencritic.com/game/', '') -replace '(\d+\/[\w|\d|\-]+).*', '$1'
         }
 
         #<# Many IGDB review listings are seemingly based on user reviews
         if ($Matches[3] -eq 'IGDB')
         {
           $Game.Reception.IGDB.Rating       = $Matches[1]
-          $Game.Reception.IGDB.Url          = [System.Uri]::UnescapeDataString($Matches[2]).Replace('https://www.igdb.com/games/', '') -replace '([\w|\d|\-]+).*', '$1'
+          $Game.Reception.IGDB.Link         = [System.Uri]::UnescapeDataString($Matches[2]).Replace('https://www.igdb.com/games/', '') -replace '([\w|\d|\-]+).*', '$1'
         }
         #>
       }
@@ -882,6 +892,22 @@ Process
     }
   }
 
+  # Reception
+  foreach ($Key in $Game.Reception.Keys)
+  {
+    if (-not [string]::IsNullOrEmpty($Game.Reception.$Key.Rating))
+    {
+      $Pattern           = "$Key|link|rating"
+      $Link              = $Game.Reception.$Key.Link
+      $Rating            = $Game.Reception.$Key.Rating
+      $Replacement       = "$Key|$Link|$Rating"
+      Write-Host $Pattern
+      Write-Host $Replacement
+      $Template.Wikitext = $Template.Wikitext.Replace($Pattern, $Replacement)
+    }
+  }
+
+  # Steam IDs
   if ($Game.Steam.IDs)
   {
     $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'steam appid' -Value "$($Game.Steam.IDs[0])"
@@ -889,7 +915,6 @@ Process
     if ($Game.Steam.IDs)
     { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'steam appid side' -Value "$(($Game.Steam.IDs[1..($Game.Steam.IDs.Count)]) -join ', ')" }
   }
-  
 
   # Website
   if ($Game.Website)
