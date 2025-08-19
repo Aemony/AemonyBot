@@ -98,6 +98,19 @@ Begin {
 
     Connect-MWSession @ApiProperties
   }
+
+  # Supported taxonomy tags
+  $Taxonomy = @{
+    modes        = (Get-MWCategoryMember 'Modes'                 -Type 'subcat').Name.Replace('Category:', '')
+    pacing       = (Get-MWCategoryMember 'Pacing'                -Type 'subcat').Name.Replace('Category:', '')
+    perspectives = (Get-MWCategoryMember 'Perspectives'          -Type 'subcat').Name.Replace('Category:', '')
+    controls     = (Get-MWCategoryMember 'Controls'              -Type 'subcat').Name.Replace('Category:', '')
+    genres       = (Get-MWCategoryMember 'Genres'                -Type 'subcat').Name.Replace('Category:', '')
+    sports       = (Get-MWCategoryMember 'Sports subcategories'  -Type 'subcat').Name.Replace('Category:', '')
+    vehicles     = (Get-MWCategoryMember 'Vehicle subcategories' -Type 'subcat').Name.Replace('Category:', '')
+   'art styles'  = (Get-MWCategoryMember 'Art styles'            -Type 'subcat').Name.Replace('Category:', '')
+    themes       = (Get-MWCategoryMember 'Themes'                -Type 'subcat').Name.Replace('Category:', '')
+  }
 }
 
 Process
@@ -208,19 +221,6 @@ Process
       'multiplayer'             = @()
       'anticheat'               = @()
     }
-  }
-
-  # Supported taxonomy tags
-  $Taxonomy = @{
-    modes        = (Get-MWCategoryMember 'Modes'                 -Type 'subcat').Name.Replace('Category:', '')
-    pacing       = (Get-MWCategoryMember 'Pacing'                -Type 'subcat').Name.Replace('Category:', '')
-    perspectives = (Get-MWCategoryMember 'Perspectives'          -Type 'subcat').Name.Replace('Category:', '')
-    controls     = (Get-MWCategoryMember 'Controls'              -Type 'subcat').Name.Replace('Category:', '')
-    genres       = (Get-MWCategoryMember 'Genres'                -Type 'subcat').Name.Replace('Category:', '')
-    sports       = (Get-MWCategoryMember 'Sports subcategories'  -Type 'subcat').Name.Replace('Category:', '')
-    vehicles     = (Get-MWCategoryMember 'Vehicle subcategories' -Type 'subcat').Name.Replace('Category:', '')
-   'art styles'  = (Get-MWCategoryMember 'Art styles'            -Type 'subcat').Name.Replace('Category:', '')
-    themes       = (Get-MWCategoryMember 'Themes'                -Type 'subcat').Name.Replace('Category:', '')
   }
 
   function RegexEscape($UnescapedString)
@@ -459,10 +459,8 @@ Process
     $PopularTags = $PageComObject.getElementsByClassName('app_tag') | Select-Object -Expand 'innerText'
     $PopularTags = $PopularTags | Where-Object { $_ -ne '+' }
 
-    foreach ($Key in $Taxoonmy.Keys)
+    foreach ($Key in $Taxonomy.Keys)
     {
-      $Values = @()
-
       foreach ($Value in $Taxonomy[$Key])
       {
         $TranslatedValue = $Value
@@ -475,11 +473,8 @@ Process
         if ($Details.categories.description -contains $TranslatedValue -or
             $Details.genres.description     -contains $TranslatedValue -or
             $PopularTags                    -contains $TranslatedValue)
-        { $Values += $Value }
+        { $Game.Taxonomy.$Key += $Value }
       }
-      
-      if ($Values)
-      { $Game.Taxonomy.$Key = $Values }
     }
 
     # IGDB      : https://store.steampowered.com/app/1814770/Tall_Poppy/
