@@ -143,6 +143,7 @@ Process
   # Core object
   $Game = [PSCustomObject]@{
     Name         = ''
+    Series       = @()
     Developers   = @()
     Publishers   = @()
     Platforms    = @() # Also holds release dates
@@ -175,6 +176,11 @@ Process
     Steam        = @{
       IDs          = @()
       DRMs         = @()
+    }
+    Introduction = @{
+      'introduction'            = '' # Allow it to auto-generate by default.
+      'release history'         = ''
+      'current state'           = ''
     }
     DLCs         = @()
     Cloud        = @{}
@@ -518,6 +524,37 @@ Process
       { $Freeware   = $true }
     }
 
+    # Series (franchise)
+    $LabelFranchise = 'Franchise: ' # Update if Steam Store layout ever changes
+    $FalseFranchise = @(
+      'WB Games'
+    )
+    foreach ($DevRow in $PageComObject.getElementsByClassName('dev_row'))
+    {
+      if ($DevRow.innerText -like "$LabelFranchise*")
+      { $Game.Series += ($DevRow.innerText.Replace($LabelFranchise, '') -split ', ').Trim() | Where-Object { $FalseFranchise -notcontains $_ } }
+    }
+
+    # Early Access release dates
+    $LabelEarlyAccess = 'Early Access Release Date: '
+    if ($Block = $PageComObject.getElementsByName('genresAndManufacturer').item(0))
+    {
+      foreach ($Row in ($Block.innerText -split "`n"))
+      {
+        if ($Row -like "$LabelEarlyAccess*")
+        {
+          $EAReleaseDate = $Row.Replace($LabelEarlyAccess, '').Trim()
+          
+          try {
+            $DateTime = [datetime]::Parse($EAReleaseDate)
+            $Game.Introduction.'release history' += "On $($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US"))) the game was released to Early Access on Steam."
+          } catch {
+            
+          }
+        }
+      }
+    }
+
     # Game Data
     if ($Details.categories.description -contains 'Steam Cloud')
     { $Game.Cloud.'steam cloud'        = 'true' }
@@ -806,8 +843,7 @@ Process
   }
 
   # Series
-  $Series = ''
-  $Template.Wikitext = $Template.Wikitext | SetTemplate 'Infobox game/row/taxonomy/series' -Value $Series
+  $Template.Wikitext = $Template.Wikitext | SetTemplate 'Infobox game/row/taxonomy/series' -Value ($Game.Series -join ', ')
 
   # Developer
   $Template.Wikitext = $Template.Wikitext.Replace('DEVELOPER', $Game.Developers[0])
@@ -932,6 +968,10 @@ Process
   # Paid DLCs
   if ($Game.DLCs.Free -contains $false)
   { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Monetization' -Parameter 'dlc' -Value 'Game offers paid DLCs.' }
+  
+  # Introduction
+  foreach ($Key in $Game.Introduction.Keys)
+  { $Template.Wikitext = $Template.Wikitext | SetTemplateParameter 'Introduction' -Parameter $Key -Value $Game.Introduction[$Key] }
 
   # Steam Community
   if ($Game.Steam.IDs)
