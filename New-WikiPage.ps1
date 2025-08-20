@@ -68,6 +68,7 @@ Begin {
   # Configuration
   $ProgressPreference = 'SilentlyContinue' # Suppress progress bar (speeds up Invoke-WebRequest by a ton)
   $ScriptLoadedModule = $false
+  $ScriptConnectedAPI = $false
 
   $Templates = @{
     Singleplayer = 'PCGamingWiki:Sample article/Game (singleplayer)'
@@ -79,16 +80,18 @@ Begin {
   {
     if ($null -ne (Get-Module -ListAvailable -Name 'MediaWiki'))
     {
-      Import-Module -Name 'MediaWiki'
+      Import-Module -Name   'MediaWiki' 6> $null # 6> $null redirects Write-Host to $null
       $ScriptLoadedModule = $true
-    } elseif (Test-Path -Path '.\MediaWiki')
+    }
+    
+    elseif (Test-Path -Path '.\MediaWiki')
     {
-      Import-Module -Name '.\MediaWiki'
+      Import-Module -Name '.\MediaWiki' 6> $null # 6> $null redirects Write-Host to $null
       $ScriptLoadedModule = $true
     }
   }
 
-  if ($null -eq (Get-Module -Name 'MediaWiki'))
+  if ($null -ne (Get-Module -Name 'MediaWiki'))
   {
     $ApiProperties = @{
       ApiEndpoint = 'https://www.pcgamingwiki.com/w/api.php'
@@ -97,6 +100,7 @@ Begin {
     }
 
     Connect-MWSession @ApiProperties
+    $ScriptConnectedAPI = $true
   }
 
   # Supported taxonomy tags
@@ -118,6 +122,12 @@ Process
   if ($null -eq (Get-Module -Name 'MediaWiki'))
   {
     Write-Warning 'MediaWiki module has not been loaded!'
+    return $null
+  }
+
+  if ($null -eq (Get-MWSession))
+  {
+    Write-Warning 'Not connected to the PCGW API endpoint!'
     return $null
   }
 
@@ -152,6 +162,15 @@ Process
     'Denuvo'                   = 'Denuvo Anti-Cheat'
     'Denuvo Anti-Cheat'        = 'Denuvo Anti-Cheat'
   }
+
+  # Ignore some DLCs based on their name
+  $IgnoredDLCs = @(
+    'art book'
+    'artbook'
+    'donation'
+    'sponsor'
+    'wallpaper'
+  )
 
   # Core object
   $Game = [PSCustomObject]@{
@@ -221,6 +240,36 @@ Process
       'multiplayer'             = @()
       'anticheat'               = @()
     }
+    SystemRequirements = @(
+      <#
+        @{
+          Platform            = 'Windows/Linux/macOS'
+          Minimum/Recommended = @{
+            TGT   = '' # Target/Settings (TGT)
+
+            # Processor (CPU)
+            CPU   = ''
+            CPU2  = ''
+
+            RAM   = '' # System memory (RAM)
+            HD    = '' # Storage drive (HDD/SSD)
+
+            # Video card (GPU)
+            GPU   = ''
+            GPU2  = ''
+            GPU3  = ''
+            VRAM  = ''
+            OGL   = '' # OpenGL
+            DX    = '' # DirectX
+            SM    = '' # Shader Model
+
+            Audio = '' # Sound (audio device)
+            Cont  = '' # Controller
+            Other = '' # Other
+          }
+        }
+      #>
+    )
   }
 
   function RegexEscape($UnescapedString)
@@ -638,10 +687,11 @@ Process
       $DlcDetails = $Json.$DlcId.data
 
       $Game.DLCs += [PSCustomObject]@{
-        Type  = $DlcDetails.type
-        Name  = $DlcDetails.name
-        Free  = $DlcDetails.is_free
-        Notes = if ($DlcDetails.is_free) { 'Free' } else { '' }
+        Type    =     $DlcDetails.type
+        Name    =     $DlcDetails.name
+        Free    =     $DlcDetails.is_free
+        Notes   = if ($DlcDetails.is_free) { 'Free' } else { '' }
+        Ignored = $false
       }
     }
     
@@ -662,6 +712,17 @@ Process
         else
         { $Game.Middleware.'anticheat' += $AC }
       }
+    }
+
+    # System Requirements
+    foreach ($Div in $PageComObject.getElementsByClassName('game_area_sys_req'))
+    {
+      foreach ($Li in $Div.getElementsByTagName('li'))
+      {
+        $Li.innerText
+      }
+
+      "-------"
     }
 
     # Return the resulting object
@@ -770,9 +831,9 @@ Process
   $Game.Name         = $Game.Name.Trim(' - ')
   $Game.Name         = $Game.Name.Trim()
 
-  # Trim DLC names
   foreach ($DlcObject in $Game.DLCs)
   {
+    # Trim DLC names
     $DlcObject.Name = $DlcObject.Name.Replace($Game.Name, '')
     $DlcObject.Name = $DlcObject.Name.Replace([string][char]0x2122, '') # ™
     $DlcObject.Name = $DlcObject.Name.Replace([string][char]0x00AE, '') # ®
@@ -783,6 +844,10 @@ Process
     $DlcObject.Name = $DlcObject.Name.Replace($Game.Name, '')
     $DlcObject.Name = $DlcObject.Name.Trim(' - ')
     $DlcObject.Name = $DlcObject.Name.Trim()
+
+    # Mark some DLCs as ignored
+    if ($IgnoredDLCs | Where-Object { $DlcDetails.name -like "*$_*" })
+    { $DlcObject.Ignored = $true }
   }
 
   $Game.Developers   = $Game.Developers -replace '(?:,?\s|,)(?:Inc|Ltd|GmbH|S\.?A|LLC|V\.?O\.?F|AB)\.?$', ''
@@ -977,10 +1042,10 @@ Process
 "@
   $DlcRows = ''
 
-  foreach ($Dlc in ($Game.DLCs | Where-Object Type -ne 'music'))
+  foreach ($Dlc in ($Game.DLCs | Where-Object { $_.Ignored -eq $false -and $_.Type -ne 'music' }))
   { $DlcRows += $DlcEntry -f $Dlc.Name, $Dlc.Notes, ($Game.Platforms.Name -join ', ') }
 
-  if ($Game.DLCs.Count -gt 0)
+  if ($DlcRows.Length -gt 0)
   { $DlcRows = "{{DLC|`n$DlcRows}}" }
 
   $Template.Wikitext = $Template.Wikitext -replace '\{\{DLC\|[\s\-\<\>\!\w\:]*?\}\}', $DlcRows
@@ -1105,8 +1170,9 @@ Process
 }
 
 End {
+  if ($ScriptConnectedAPI)
+  { Disconnect-MWSession }
+
   if ($ScriptLoadedModule)
-  {
-    Remove-Module -Name 'MediaWiki'
-  }
+  { Remove-Module -Name 'MediaWiki' }
 }
