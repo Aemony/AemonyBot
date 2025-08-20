@@ -70,6 +70,10 @@ Begin {
   $ScriptLoadedModule = $false
   $ScriptConnectedAPI = $false
 
+  # Script variable to indicate the location of the saved config file
+  $ConfigFileName     = $env:LOCALAPPDATA + '\PowerShell\New-WikiPage\config.json'
+  $SteamDataPath      = $env:LOCALAPPDATA + '\PowerShell\New-WikiPage\steam_apps.json'
+
   $Templates = @{
     Singleplayer = 'PCGamingWiki:Sample article/Game (singleplayer)'
     Multiplayer  = 'PCGamingWiki:Sample article/Game (multiplayer)'
@@ -131,7 +135,7 @@ Process
     return $null
   }
 
-  $CoverPath = '.\cover.jpg'
+  $CoverPath           = '.\cover.jpg'
 
   # Sanitize input
   $KnownDRMs = [PSCustomObject]@{
@@ -344,18 +348,117 @@ Process
     }
   }
 
+  # Fallback function
+  function GetSteamDataFallback
+  {
+    param (
+      $UserAgent,
+      $WebSession
+    )
+    # If the file exists, do not update it
+    if (Test-Path $SteamDataPath)
+    { return }
+
+    $UAGoogleBot = $UserAgent
+    $Session     = $WebSession
+
+    # Fallback
+    $SteamUserID = '76561198017975643' # This is just some public user with a ton of games, lol
+    # Taken from https://steamladder.com/ladder/games/
+    $SteamWebApiKey = $null
+
+    if ((Test-Path $ConfigFileName) -eq $true)
+    {
+      Try
+      {
+        # Try to load the config file.
+        $SteamWebApiKey = Get-Content $ConfigFileName -ErrorAction Stop | ConvertTo-SecureString -ErrorAction Stop
+
+        # Try to convert the hashed password. This will only work on the same machine that the config file was created on.
+      } Catch [System.Management.Automation.ItemNotFoundException], [System.ArgumentException] {
+        # Handle corrupt config file
+        Write-Warning "The stored configuration could not be found or was corrupt.`n"
+        $SteamWebApiKey = $null
+      } Catch [System.Security.Cryptography.CryptographicException] {
+        # Handle broken key
+        Write-Warning "The key in the stored configuration could not be read."
+        $SteamWebApiKey = $null
+      } Catch {
+        # Unknown exception
+        Write-Warning "Unknown error occurred when trying to read stored configuration."
+        $SteamWebApiKey = $null
+      }
+    }
+
+    if ($null -eq $SteamWebApiKey)
+    {
+      Write-Host 'Trying to retrieve game data using the Steam Web API...'
+      Write-Host
+      Write-Host 'A personal Steam Web API key can be created at https://steamcommunity.com/dev/apikey'
+      Write-Host
+      Write-Host '!!! DO NOT SHARE YOUR WEB API KEY WITH ANYONE !!!'
+      Write-Host
+
+      [SecureString]$SecurePassword = Read-Host 'Steam Web API Key' -AsSecureString
+      $SteamWebApiKey = if ($SecurePassword.Length -eq 0) { $null } else { $SecurePassword | ConvertFrom-SecureString }
+
+      if ($SteamWebApiKey)
+      {
+        Write-Host
+
+        $Yes = @('y', 'yes')
+        $No  = @('n', 'no')
+        do { $Reply = Read-Host 'Do you want the script to remember the key for future uses? (y/n)' }
+        while ($Yes -notcontains $Reply -and $No -notcontains $Reply)
+
+        if ($Yes -contains $Reply)
+        {
+          # Create the file first using New-Item with -Force parameter so missing directories are also created.
+          New-Item -Path $ConfigFileName -ItemType "file" -Force | Out-Null
+
+          # Output the config to the recently created file
+          $SteamWebApiKey | Out-File $ConfigFileName
+        }
+      }
+    }
+
+    if ($SteamWebApiKey)
+    {
+      $BSTR        = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SteamWebApiKey)
+      $PlainApiKey = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+
+      $SteamWebApiLink = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=$PlainApiKey&steamid=$SteamUserID&skip_unvetted_apps=false&include_played_free_games=true&include_free_sub=true&include_appinfo=true&include_extended_appinfo=true&language=english"
+
+      try {
+        #Write-Verbose "Retrieving $SteamWebApiLink"
+        Write-Verbose "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/..."
+        Invoke-WebRequest -Uri $SteamWebApiLink -Method GET -UseBasicParsing -DisableKeepAlive -UserAgent $UAGoogleBot -WebSession $Session -OutFile $SteamDataPath
+      } catch {
+        $StatusCode = $_.Exception.response.StatusCode.value__
+      }
+
+      $PlainApiKey    = $null
+      $SteamWebApiKey = $null
+      $SecurePassword = $null
+
+      if ($BSTR)
+      { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR) }
+    }
+  }
+
   function GetSteamData($AppId)
   {
     # Extract information from Steam
     Write-Verbose "Steam App ID: $AppId"
 
-    $Details       = $null
-    $PageComObject = $null # ComObject: HTMLFile
+    $Details         = $null
+    $PageComObject   = $null # ComObject: HTMLFile
+    $AssumedCoverUrl = "library_600x900_2x.jpg"
 
-    $UAGoogleBot   = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
-    $Session       = New-Object Microsoft.PowerShell.Commands.WebRequestSession # [Microsoft.PowerShell.Commands.WebRequestSession]::new()
-    $CookiesAge    = [System.Net.Cookie]::new('birthtime', '0')
-    $CookiesAdult  = [System.Net.Cookie]::new('mature_content', '1')
+    $UAGoogleBot     = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+    $Session         = New-Object Microsoft.PowerShell.Commands.WebRequestSession # [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+    $CookiesAge      = [System.Net.Cookie]::new('birthtime', '0')
+    $CookiesAdult    = [System.Net.Cookie]::new('mature_content', '1')
     $Session.Cookies.Add('https://store.steampowered.com/', $CookiesAge)
     $Session.Cookies.Add('https://store.steampowered.com/', $CookiesAdult)
 
@@ -380,15 +483,16 @@ Process
     if ($Json.$AppId.success -ne 'true')
     {
       Write-Warning 'Failed to parse game json from Steam!'
-      return
+      GetSteamDataFallback -UserAgent $UAGoogleBot -WebSession $Session
+      #return
     }
 
     $Details = $Json.$AppId.data
 
-    if ($Details.type -ne 'game')
+    if ($Details.type -and $Details.type -ne 'game')
     {
       Write-Warning "$AppId is not a game!"
-      return
+      #return
     }
 
     # Steam Store
@@ -404,35 +508,67 @@ Process
     if ($StatusCode -ne 200)
     {
       Write-Warning 'Failed to retrieve store page from Steam!'
-      return
+      GetSteamDataFallback -UserAgent $UAGoogleBot -WebSession $Session
+      #return
     }
 
     $PageComObject = New-Object -ComObject "HTMLFile"
     [string]$PageContent = $WebPage.Content
     $PageComObject.Write([ref]$PageContent)
 
+    # If we have stored a local copy of Steam's massive app info dump, use it
+    $SADBItem = $null
+
+    if (Test-Path $SteamDataPath)
+    {
+      $SADB     = Get-Content $SteamDataPath -Raw | ConvertFrom-Json
+      if ($SADB)
+      { $SADBItem = $SADB.response.games | Where-Object { $_.appid -eq $AppId } }
+    }
+
+    if ($SADBItem)
+    { $AssumedCoverUrl = $SADBItem.capsule_filename.Replace('library_600x900.jpg', 'library_600x900_2x.jpg') }
+
+    $SteamCoverLink  = "https://steamcdn-a.akamaihd.net/steam/apps/$AppId/$AssumedCoverUrl"
+    $SteamCoverLink2 = "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/$AppId/$AssumedCoverUrl"
+
     # Steam cover (600x900_2x.jpg)
     # Safe to use: "All capsule images (store and library) must have PG-13 appropriate artwork."
-    $Link = "https://steamcdn-a.akamaihd.net/steam/apps/$AppId/library_600x900_2x.jpg"
+    $Link = $SteamCoverLink
     try {
       Write-Verbose "Retrieving $Link"
       Invoke-WebRequest -Uri $Link -Method GET -UseBasicParsing -DisableKeepAlive -UserAgent $UAGoogleBot -WebSession $Session -OutFile $CoverPath
     } catch {
-      $StatusCode = $_.Exception.response.StatusCode.value__
+      $Link = $SteamCoverLink2
+      try {
+        Write-Verbose "Retrieving $Link"
+        Invoke-WebRequest -Uri $Link -Method GET -UseBasicParsing -DisableKeepAlive -UserAgent $UAGoogleBot -WebSession $Session -OutFile $CoverPath
+        $StatusCode = 200
+      } catch {
+        $StatusCode = $_.Exception.response.StatusCode.value__
+      }
     }
     
     # This can happen, but usually only for really new games
     if ($StatusCode -ne 200 -or -not (Test-Path $CoverPath))
     { Write-Warning 'Failed to retrieve game cover from Steam!' }
 
-
-
     # Parsing the data
-    $Game.Name      = $Details.name
     $Game.Steam.IDs = @($AppId)
 
-    $Game.Developers += $Details.developers.Trim()
-    $Game.Publishers += $Details.publishers.Trim() | Where-Object { $Game.Developers -notcontains $_ }
+    if ($Details)
+    {
+      $Game.Name        = $Details.name
+      $Game.Developers += $Details.developers.Trim()
+      $Game.Publishers += $Details.publishers.Trim() | Where-Object { $Game.Developers -notcontains $_ }
+    }
+    
+    # Fallback
+    elseif ($SADBItem)
+    {
+      $Game.Name        = $SADBItem.Name
+      $Game.Developers += 'Unknown'
+    }
 
     if ($null -ne $Details.drm_notice)
     {
@@ -487,25 +623,36 @@ Process
       }
     }
 
-    # Taxonomy
-    $PopularTags = $PageComObject.getElementsByClassName('app_tag') | Select-Object -Expand 'innerText'
-    $PopularTags = $PopularTags | Where-Object { $_ -ne '+' }
-
-    foreach ($Key in $Taxonomy.Keys)
+    # Fallback
+    if ($Game.Platforms.Count -eq 0 -and $SADBItem)
     {
-      foreach ($Value in $Taxonomy[$Key])
+      $Game.Platforms += [PSCustomObject]@{
+        Name        = 'Windows'
+        ReleaseDate = 'Unknown'
+      }
+    }
+
+    # Taxonomy
+    if ($PopularTags = $PageComObject.getElementsByClassName('app_tag') | Select-Object -Expand 'innerText')
+    {
+      $PopularTags = $PopularTags | Where-Object { $_ -ne '+' }
+
+      foreach ($Key in $Taxonomy.Keys)
       {
-        $TranslatedValue = $Value
+        foreach ($Value in $Taxonomy[$Key])
+        {
+          $TranslatedValue = $Value
 
-        if ($TranslatedValue -eq 'Multiplayer')
-        { $TranslatedValue = 'Multi-player'}
-        elseif ($TranslatedValue -eq 'Singleplayer')
-        { $TranslatedValue = 'Single-player'}
+          if ($TranslatedValue -eq 'Multiplayer')
+          { $TranslatedValue = 'Multi-player'}
+          elseif ($TranslatedValue -eq 'Singleplayer')
+          { $TranslatedValue = 'Single-player'}
 
-        if ($Details.categories.description -contains $TranslatedValue -or
-            $Details.genres.description     -contains $TranslatedValue -or
-            $PopularTags                    -contains $TranslatedValue)
-        { $Game.Taxonomy.$Key += $Value }
+          if ($Details.categories.description -contains $TranslatedValue -or
+              $Details.genres.description     -contains $TranslatedValue -or
+              $PopularTags                    -contains $TranslatedValue)
+          { $Game.Taxonomy.$Key += $Value }
+        }
       }
     }
 
@@ -635,17 +782,23 @@ Process
     { $Game.Audio.'surround sound'     = ($Sound -join ', ') }
 
     # Localization
-    foreach ($L10nRow in $PageComObject.getElementsByClassName('game_language_options').item(0).children(0).children)
+    if ($L10nRows = $PageComObject.getElementsByClassName('game_language_options').item(0))
     {
-      # Skip first row
-      if ($L10nRow.innerText -like "*Full Audio*")
-      { continue }
+      if ($FirstChild = $L10nRows.children(0))
+      {
+        foreach ($L10nRow in $FirstChild.children)
+        {
+          # Skip first row
+          if ($L10nRow.innerText -like "*Full Audio*")
+          { continue }
 
-      $Game.Localizations += [PSCustomObject]@{
-        Language  =            $L10nRow.children(0).innerText.Trim()
-        Interface = ($null -ne $L10nRow.children(1).innerText)
-        Audio     = ($null -ne $L10nRow.children(2).innerText)
-        Subtitles = ($null -ne $L10nRow.children(3).innerText)
+          $Game.Localizations += [PSCustomObject]@{
+            Language  =            $L10nRow.children(0).innerText.Trim()
+            Interface = ($null -ne $L10nRow.children(1).innerText)
+            Audio     = ($null -ne $L10nRow.children(2).innerText)
+            Subtitles = ($null -ne $L10nRow.children(3).innerText)
+          }
+        }
       }
     }
 
@@ -730,11 +883,13 @@ Process
 
     # Return the resulting object
     return @{
-      Details = $Details
-      Store   = @{
+      Details  = $Details
+      Store    = @{
         Page      = $PageContent
         ComObject = $PageComObject
       }
+      Cover    = $SteamCoverLink
+      Fallback = $SADBItem
     }
   }
 
