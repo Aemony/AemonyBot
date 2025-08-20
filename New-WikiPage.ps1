@@ -846,7 +846,10 @@ Process
     $DlcObject.Name = $DlcObject.Name.Trim()
 
     # Mark some DLCs as ignored
-    if ($IgnoredDLCs | Where-Object { $DlcDetails.name -like "*$_*" })
+    if ($null -ne ($IgnoredDLCs | Where-Object { $DlcObject.Name -like "*$_*" }))
+    { $DlcObject.Ignored = $true }
+
+    if ($DlcObject.Type -eq 'music')
     { $DlcObject.Ignored = $true }
   }
 
@@ -1042,7 +1045,7 @@ Process
 "@
   $DlcRows = ''
 
-  foreach ($Dlc in ($Game.DLCs | Where-Object { $_.Ignored -eq $false -and $_.Type -ne 'music' }))
+  foreach ($Dlc in ($Game.DLCs | Where-Object { $_.Ignored -eq $false }))
   { $DlcRows += $DlcEntry -f $Dlc.Name, $Dlc.Notes, ($Game.Platforms.Name -join ', ') }
 
   if ($DlcRows.Length -gt 0)
