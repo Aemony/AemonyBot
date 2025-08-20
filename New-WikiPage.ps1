@@ -623,7 +623,7 @@ Process
     { $Game.Audio.'separate volume'    = 'true' }
     
     if ($Details.categories.description -contains 'Captions available')
-    { $Game.Audio.'subtitles'          = 'true' }
+    { $Game.Audio.'closed captions'    = 'true' }
 
     $Sound = @()
     if ($Details.categories.description -contains 'Stereo Sound')
@@ -648,6 +648,9 @@ Process
         Subtitles = ($null -ne $L10nRow.children(3).innerText)
       }
     }
+
+    if ($Game.Localizations | Where-Object Subtitles -eq $true)
+    { $Game.Audio.'subtitles'          = 'true' }
 
     # VR
     if ($Details.categories.description -contains 'VR Supported')
