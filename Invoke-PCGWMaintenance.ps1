@@ -829,6 +829,14 @@ Process {
     # Space between bullets and words
     $Page.Wikitext = $Page.Wikitext -replace '\{\{(\+{2}|\-{2}|i{2}|m{2})\}\}(\w)', '{{$1}} $2'
 
+    # Convert some external links into external ones:
+    $Page.Wikitext = $Page.Wikitext.Replace('[https://reshade.me ReShade]', '[[ReShade]]')
+    $Page.Wikitext = $Page.Wikitext.Replace('[https://reshade.me/ ReShade]', '[[ReShade]]')
+    $Page.Wikitext = $Page.Wikitext.Replace('[https://github.com/doitsujin/dxvk DXVK]', '[[DXVK]]')
+    $Page.Wikitext = $Page.Wikitext.Replace('[https://github.com/doitsujin/dxvk/ DXVK]', '[[DXVK]]')
+    $Page.Wikitext = $Page.Wikitext.Replace('[https://www.special-k.info Special K]', '[[Special K]]')
+    $Page.Wikitext = $Page.Wikitext.Replace('[https://www.special-k.info/ Special K]', '[[Special K]]')
+
     # Move commas before any reference that may exist
     # Regex is not well suited for this -- need a regular solution using forward find for "</ref>," and then a reverse find for "<ref>"
     #$Page.Wikitext = $Page.Wikitext -replace '(<ref[^>]*\>.*?)(?=(?:<\/ref>,))', ',$1</ref>'
@@ -837,13 +845,26 @@ Process {
     # Disabled for now because it affects URLs as well................ >_<
     #$Page.Wikitext = $Page.Wikitext.Replace('drm-free', 'DRM-free')
 
-    
-
     if ($Before -cne $Page.Wikitext)
     {
       $Summary += ' ~misc'
     }
 #endregion
+
+#region Add missing template parameters
+    $Before       = $Page.Wikitext
+
+    if ($Page.Wikitext -notmatch '\|framegen\s*=')
+    {
+      $Page.Wikitext = $Page.Wikitext -replace '(\|vsync\s*=)', "|framegen                   = unknown`n|framegen tech              = `n|framegen notes             = `n`$1"
+    }
+
+    if ($Before -cne $Page.Wikitext)
+    {
+      $Summary += ' +template usage'
+    }
+#endregion
+
 
 
 
