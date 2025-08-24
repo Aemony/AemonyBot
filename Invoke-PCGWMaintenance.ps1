@@ -820,6 +820,15 @@ Process {
     { $ProcessedName = $ProcessedName.Replace(($Page.Namespace + ':'), '') }
     $Page.Wikitext = $Page.Wikitext.Replace('{{PAGENAME}}', $ProcessedName)
 
+    # | {{DRM|SafeDisc}} disc check. | -> | {{DRM|SafeDisc}} |
+    $Page.Wikitext = $Page.Wikitext -replace '\|\s*(\{\{DRM\|(?:\w)+(?:\|[^\}]*)?\}\}) disc check\.?\s*\|', '| $1 |'
+
+    # Image caption punctuation (remove trailing periods)
+    $Page.Wikitext = $Page.Wikitext -replace '\{\{Image\|\s*([\w\.]+)\s*\|\s*([^\}]*)\.\s*\}\}', '{{Image|$1|$2}}'
+
+    # Space between bullets and words
+    $Page.Wikitext = $Page.Wikitext -replace '\{\{(\+{2}|\-{2}|i{2}|m{2})\}\}(\w)', '{{$1}} $2'
+
     # Move commas before any reference that may exist
     # Regex is not well suited for this -- need a regular solution using forward find for "</ref>," and then a reverse find for "<ref>"
     #$Page.Wikitext = $Page.Wikitext -replace '(<ref[^>]*\>.*?)(?=(?:<\/ref>,))', ',$1</ref>'
