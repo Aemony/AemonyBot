@@ -1,5 +1,6 @@
 # AemonyBot
 
-The script used by [AemonyBot](https://www.pcgamingwiki.com/wiki/User:AemonyBot) on PCGamingWiki to perform some basic maintenance on recently changed wiki pages.
+[AemonyBot](https://www.pcgamingwiki.com/wiki/User:AemonyBot) is a MediaWiki bot running on the [PCGamingWiki](https://www.pcgamingwiki.com) performing various maintenance tasks, some fully automated and others manually triggered.
 
-All the root functionality is provided by my [MediaWiki](https://github.com/Aemony/MediaWiki) PowerShell module.
+* All the root functionality is provided by my [MediaWiki](https://github.com/Aemony/MediaWiki) PowerShell module.
+* Interfacing with the IGDB API is done through my [IGDB](https://github.com/Aemony/IGDB) PowerShell module.
