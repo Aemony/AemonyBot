@@ -181,16 +181,24 @@ Process
       File         = $FilePath.FullName
       FixExtension = $true
       Force        = $Force
-      Description  = "Cover for [[$Name]]."
+      Comment      = "Cover for [[$Name]]."
     }
-    $Result.Upload = Import-MWFile @UploadParams
+    $Result.Upload = Import-MWFile @UploadParams -JSON
     Remove-Item -Path $FilePath.FullName -Force
 
     # Update PCGW page on a successful upload
-    if ($Result.Upload.filename)
+    if ($Result.Upload.upload.filename)
     {
-      $FinalName = $Result.Upload.filename
+      $FinalName = $Result.Upload.upload.filename
       $FinalName = $FinalName.Replace('_', ' ')
+      $Result.PCGW.Wikitext = $Result.PCGW.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'cover' -Value $FinalName
+      $Result.PCGW = Set-MWPage -Name $Name -Content $Result.PCGW.Wikitext -Bot -Minor -NoCreate -Summary 'Added game cover'
+    }
+
+    # File is a duplicate, attempt to link to that one instead
+    elseif ($Result.Upload.errors.code -eq 'fileexists-no-change')
+    {
+      $FinalName = $Result.Upload.errors.text -replace '.*\[\[\:File\:(.*)\]\]\.', '$1'
       $Result.PCGW.Wikitext = $Result.PCGW.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'cover' -Value $FinalName
       $Result.PCGW = Set-MWPage -Name $Name -Content $Result.PCGW.Wikitext -Bot -Minor -NoCreate -Summary 'Added game cover'
     }
