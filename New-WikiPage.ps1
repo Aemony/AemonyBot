@@ -1304,7 +1304,7 @@ Process
     # Upload cover first (needed for initial page rendering)
     if ($null -ne $Result.Cover)
     {
-      $Result.File = Import-MWFile -Name "$TargetPage cover.jpg" -File $CoverPath.FullName -IgnoreWarnings
+      $Result.File = Import-MWFile -Name "$TargetPage cover.jpg" -File $CoverPath.FullName
       Remove-Item -Path $CoverPath.FullName -Force
     }
 
