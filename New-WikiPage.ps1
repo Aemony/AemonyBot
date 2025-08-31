@@ -97,14 +97,17 @@ Begin {
 
   if ($null -ne (Get-Module -Name 'MediaWiki'))
   {
-    $ApiProperties = @{
-      ApiEndpoint = 'https://www.pcgamingwiki.com/w/api.php'
-      Guest      = (-not $Online)
-      Silent     = $true
-    }
+    if ($null -eq (Get-MWSession))
+    {
+      $ApiProperties = @{
+        ApiEndpoint = 'https://www.pcgamingwiki.com/w/api.php'
+        Guest      = (-not $Online)
+        Silent     = $true
+      }
 
-    Connect-MWSession @ApiProperties
-    $ScriptConnectedAPI = $true
+      Connect-MWSession @ApiProperties
+      $ScriptConnectedAPI = $true
+    }
   }
 
   # Supported taxonomy tags
