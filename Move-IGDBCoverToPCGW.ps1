@@ -141,8 +141,9 @@ Process
     { $Result.IGDB = Get-IGDBGame -Where "name = `"$IGDBQuery`" & platforms = (6)" -Fields 'cover.*' }
   }
 
-  if (-not $Result.IGDB -or
-      -not $Result.IGDB.cover)
+  if (-not $Result.IGDB       -or
+      -not $Result.IGDB.cover -or
+      -not $Result.IGDB.cover.url)
   {
     Write-Warning "Found no cover on IGDB for $IGDBQuery."
     return
@@ -151,7 +152,10 @@ Process
   # Process
   
   $StatusCode = 200
-  $Link       = "https:" + ($Result.IGDB.cover[0].url.Replace('t_thumb', 't_original'))
+
+  $Covers = $Result.IGDB.cover | Where-Object url -ne $null
+
+  $Link       = "https:" + ($Covers[0].url.Replace('t_thumb', 't_original'))
   $ext        = $Link.Split('.')[-1]
 
   if (-not $NoConfirm)
