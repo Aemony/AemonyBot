@@ -1258,7 +1258,7 @@ Process
   $L10nRows = ''
 
   foreach ($L10n in $Game.Localizations)
-  { $L10nRows += $L10nEntry -f $L10n.Language, $L10n.Interface, $L10n.Audio, $L10n.Subtitles }
+  { $L10nRows += $L10nEntry -f $L10n.Language, $L10n.Interface.ToString().ToLower(), $L10n.Audio.ToString().ToLower(), $L10n.Subtitles.ToString().ToLower() }
 
   $Template.Wikitext = $Template.Wikitext -replace '\{\{L10n\/switch[\s\|\w=]*?\}\}', $L10nRows
 
@@ -1312,7 +1312,7 @@ Process
       Remove-Item -Path $CoverPath.FullName -Force
     }
 
-    $Result.Page = Set-MWPage -Name  $TargetPage -Major -CreateOnly -Content $Template.Wikitext
+    $Result.Page = Set-MWPage -Name  $TargetPage -Major -CreateOnly -Content $Result.Wikitext
 
     return $Result
   }
@@ -1330,7 +1330,7 @@ Process
   
   # -Offline (default)
   else {
-    $Results.Wikitext | Out-File $WikitextPath -Force
+    $Result.Wikitext | Out-File $WikitextPath -Force
     $WikitextPath = Get-Item $WikitextPath
 
     Write-Host "The output can be found at:"
