@@ -6,4 +6,4 @@
 *.Package.ps1
 *.json
 *.log
-/cover.jpg
+/out-*

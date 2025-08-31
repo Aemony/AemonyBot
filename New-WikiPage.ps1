@@ -138,7 +138,8 @@ Process
     return $null
   }
 
-  $CoverPath           = '.\cover.jpg'
+  $CoverPath           = '.\out-cover.jpg'
+  $WikitextPath        = '.\out-wikitext.txt'
 
   # Sanitize input
   $KnownDRMs = [PSCustomObject]@{
@@ -1329,7 +1330,14 @@ Process
   
   # -Offline (default)
   else {
-    return $Result
+    $Results.Wikitext | Out-File $WikitextPath -Force
+    $WikitextPath = Get-Item $WikitextPath
+
+    Write-Host "The output can be found at:"
+    if ($WikitextPath.FullName)
+    { Write-Host "  Wikitext: $WikitextPath" }
+    if ($CoverPath.FullName)
+    { Write-Host "     Cover: $CoverPath" }
   }
 }
 
