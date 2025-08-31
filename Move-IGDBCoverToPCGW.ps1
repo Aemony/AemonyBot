@@ -127,9 +127,9 @@ Process
   if ($Search)
   {
     if ($AllPlatforms)
-    { $Result.IGDB = Get-IGDBGame -Search $IGDBQuery -Fields 'cover.*' }
+    { $Result.IGDB = Find-IGDBGame -Search $IGDBQuery -Fields 'cover.*' }
     else
-    { $Result.IGDB = Get-IGDBGame -Search $IGDBQuery -Where 'platforms = (6)' -Fields 'cover.*' }
+    { $Result.IGDB = Find-IGDBGame -Search $IGDBQuery -Where 'platforms = (6)' -Fields 'cover.*' }
   }
 
   # Name mode
