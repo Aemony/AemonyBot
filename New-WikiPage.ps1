@@ -813,6 +813,31 @@ Process
       }
     }
 
+    # Sort the array based on PCGW rules
+    foreach ($L10n in $Game.Localizations)
+    {
+      if ($L10n.Language -eq 'English')
+      { $L10n.Language = 'aaaaaaaaaaaaaaaa English' }
+      elseif ($L10n.Language -eq 'Simplified Chinese')
+      { $L10n.Language = 'Chinese - Simplified' }
+      elseif ($L10n.Language -eq 'Traditional Chinese')
+      { $L10n.Language = 'Chinese - Traditional' }
+    }
+
+    $Game.Localizations = $Game.Localizations | Sort-Object Language
+
+    foreach ($L10n in $Game.Localizations)
+    {
+      if ($L10n.Language -eq 'aaaaaaaaaaaaaaaa English')
+      { $L10n.Language = 'English' }
+      elseif ($L10n.Language -eq 'Chinese - Simplified')
+      { $L10n.Language = 'Simplified Chinese' }
+      elseif ($L10n.Language -eq 'Chinese - Traditional')
+      { $L10n.Language = 'Traditional Chinese' }
+    }
+
+    # Finished sorting the array
+
     if ($Game.Localizations | Where-Object Subtitles -eq $true)
     { $Game.Audio.'subtitles'          = 'true' }
 
