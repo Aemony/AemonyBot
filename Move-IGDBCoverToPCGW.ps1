@@ -157,7 +157,7 @@ Process
   {
     Write-Host "Discovered image: $Link"
     do {
-      $Prompt = Read-Host "Do you want to use the image? [y/n]"
+      $Prompt = Read-Host "Do you want to use this image? [y/n]"
 
       if ($Prompt -eq 'n')
       { return }
