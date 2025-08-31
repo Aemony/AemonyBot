@@ -244,7 +244,12 @@ Process
       $Result.PCGW = Set-MWPage -Name $Name -Content $Result.PCGW.Wikitext -Bot -Minor -NoCreate -Summary 'Added game cover'
     }
 
-    return $Result
+    if ($Result.Upload.upload.result -eq "Success")
+    { Write-Host "Cover was uploaded successfully." }
+    else
+    { Write-Host "Cover failed to be uploaded!" }
+
+    return $null
   }
 }
 
