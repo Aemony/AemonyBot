@@ -1,22 +1,21 @@
 [CmdletBinding(DefaultParameterSetName = 'Generic')]
 Param (
-  <#
-    Generic
-  #>
+  # Name of the game to look up/search for covers
   [Parameter(Mandatory, ValueFromPipelineByPropertyName, ParameterSetName = 'Generic', Position=0)]
   [ValidateNotNullOrEmpty()]
   [string]$Name,
 
-  # Optional, if different from -Name
-  [string]$IGDBQuery,
-
-  <#
-    Switches
-  #>
+  # Use IGDB's search capability instead of making a name lookup
   [switch]$Search,
+
+  # Extend the lookup/search to include non-PC platforms
   [switch]$AllPlatforms,
-  [switch]$NoConfirm, # Suppress the confirmation prompt
-  [switch]$Force,     # Ignore warnings (i.e. overwrite existing or previously removed files)
+
+  # WARNING: Naively assumes the first found cover is the right one, by suppressing the user verification step
+  [switch]$NoVerification,
+
+  # WARNING: Ignore warnings, i.e. overwrite existing or previously removed files on the wiki
+  [switch]$Force,
 
   <#
     Debug
@@ -112,45 +111,45 @@ Process
     PCGW = $null
   }
 
-  $Result.PCGW = Get-MWPage $Name -Wikitext
-
-  if (-not $Result.PCGW)
+  $PageName = $Name
+  do
   {
-    do
+    $Result.PCGW = Get-MWPage $PageName -Wikitext
+
+    if (-not $Result.PCGW)
     {
-      $PCGWName = Read-Host 'Page name on PCGamingWiki'
-      $Result.PCGW = Get-MWPage $PCGWName -Wikitext
-    } while ($null -eq $Result.PCGW)
-  }
+      $PageName = Read-Host 'Page name on PCGamingWiki'
+    }
+  } while ($null -eq $Result.PCGW)
 
-  if ([string]::IsNullOrWhiteSpace($IGDBQuery))
-  { $IGDBQuery = $Name }
-
-  # Search mode
-  if ($Search)
+  do
   {
-    if ($AllPlatforms)
-    { $Result.IGDB = Find-IGDBGame -Search $IGDBQuery -Fields 'cover.*' }
+    # Search mode
+    if ($Search)
+    {
+      if ($AllPlatforms)
+      { $Result.IGDB = Find-IGDBGame -Search $Name -Fields 'cover.*' }
+      else
+      { $Result.IGDB = Find-IGDBGame -Search $Name -Where 'platforms = (3,6,14)' -Fields 'cover.*' }
+    }
+
+    # Name mode
     else
-    { $Result.IGDB = Find-IGDBGame -Search $IGDBQuery -Where 'platforms = (6,14)' -Fields 'cover.*' }
-  }
+    {
+      if ($AllPlatforms)
+      { $Result.IGDB = Get-IGDBGame -Where "name = `"$Name`"" -Fields 'cover.*' }
+      else
+      { $Result.IGDB = Get-IGDBGame -Where "name = `"$Name`" & platforms = (3,6,14)" -Fields 'cover.*' }
+    }
 
-  # Name mode
-  else
-  {
-    if ($AllPlatforms)
-    { $Result.IGDB = Get-IGDBGame -Where "name = `"$IGDBQuery`"" -Fields 'cover.*' }
-    else
-    { $Result.IGDB = Get-IGDBGame -Where "name = `"$IGDBQuery`" & platforms = (6,14)" -Fields 'cover.*' }
-  }
-
-  if (-not $Result.IGDB       -or
-      -not $Result.IGDB.cover -or
-      -not $Result.IGDB.cover.url)
-  {
-    Write-Warning "Found no cover on IGDB for $IGDBQuery."
-    return
-  }
+    if (-not $Result.IGDB       -or
+        -not $Result.IGDB.cover -or
+        -not $Result.IGDB.cover.url)
+    {
+      Write-Warning "Found no cover on IGDB for $Name."
+      $Name = Read-Host 'Alternate name'
+    }
+  } while($null -eq $Result.IGDB)
 
   # Process
   
@@ -161,7 +160,7 @@ Process
   $Link       = "https:" + ($Covers[0].url.Replace('t_thumb', 't_original'))
   $ext        = $Link.Split('.')[-1]
 
-  if (-not $NoConfirm)
+  if (-not $NoVerification)
   {
     Write-Host "Discovered image: $Link"
     do {
@@ -211,7 +210,7 @@ Process
     }
 
     $FilePath = Get-Item $FilePath
-    $PCGWFile = "$Name cover.$ext"
+    $PCGWFile = "$($Result.PCGW.Name) cover.$ext"
 
     $PCGWFile = $PCGWFile.Replace(': ', ' ')
     $PCGWFile = $PCGWFile.Replace(':',  ' ')
@@ -224,7 +223,7 @@ Process
       File         = $FilePath.FullName
       FixExtension = $true
       Force        = $Force
-      Comment      = "Cover for [[$Name]]."
+      Comment      = "Cover for [[$($Result.PCGW.Name)]]."
     }
 
     $Result.Upload = Import-MWFile @UploadParams -JSON
@@ -236,7 +235,7 @@ Process
       $FinalName = $Result.Upload.upload.filename
       $FinalName = $FinalName.Replace('_', ' ')
       $Result.PCGW.Wikitext = $Result.PCGW.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'cover' -Value $FinalName
-      $Result.PCGW = Set-MWPage -Name $Name -Content $Result.PCGW.Wikitext -Bot -Minor -NoCreate -Summary 'Added game cover'
+      $Result.PCGW = Set-MWPage -Name $Result.PCGW.Name -Content $Result.PCGW.Wikitext -Bot -Minor -NoCreate -Summary 'Added game cover'
     }
 
     # File is a duplicate, attempt to link to that one instead
@@ -244,7 +243,7 @@ Process
     {
       $FinalName = $Result.Upload.errors.text -replace '.*\[\[\:File\:(.*)\]\]\.', '$1'
       $Result.PCGW.Wikitext = $Result.PCGW.Wikitext | SetTemplateParameter 'Infobox game' -Parameter 'cover' -Value $FinalName
-      $Result.PCGW = Set-MWPage -Name $Name -Content $Result.PCGW.Wikitext -Bot -Minor -NoCreate -Summary 'Added game cover'
+      $Result.PCGW = Set-MWPage -Name $Result.PCGW.Name -Content $Result.PCGW.Wikitext -Bot -Minor -NoCreate -Summary 'Added game cover'
     }
 
     if ($Result.Upload.upload.result -eq "Success")
