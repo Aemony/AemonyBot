@@ -116,8 +116,11 @@ Process
 
   if (-not $Result.PCGW)
   {
-    Write-Warning "Found no PCGW page for $Name."
-    return
+    do
+    {
+      $PCGWName = Read-Host 'Page name on PCGamingWiki'
+      $Result.PCGW = Get-MWPage $PCGWName -Wikitext
+    } while ($null -eq $Result.PCGW)
   }
 
   if ([string]::IsNullOrWhiteSpace($IGDBQuery))
@@ -129,7 +132,7 @@ Process
     if ($AllPlatforms)
     { $Result.IGDB = Find-IGDBGame -Search $IGDBQuery -Fields 'cover.*' }
     else
-    { $Result.IGDB = Find-IGDBGame -Search $IGDBQuery -Where 'platforms = (6)' -Fields 'cover.*' }
+    { $Result.IGDB = Find-IGDBGame -Search $IGDBQuery -Where 'platforms = (6,14)' -Fields 'cover.*' }
   }
 
   # Name mode
@@ -138,7 +141,7 @@ Process
     if ($AllPlatforms)
     { $Result.IGDB = Get-IGDBGame -Where "name = `"$IGDBQuery`"" -Fields 'cover.*' }
     else
-    { $Result.IGDB = Get-IGDBGame -Where "name = `"$IGDBQuery`" & platforms = (6)" -Fields 'cover.*' }
+    { $Result.IGDB = Get-IGDBGame -Where "name = `"$IGDBQuery`" & platforms = (6,14)" -Fields 'cover.*' }
   }
 
   if (-not $Result.IGDB       -or
