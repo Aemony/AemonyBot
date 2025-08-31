@@ -735,10 +735,17 @@ Process
           
           try {
             $DateTime = [datetime]::Parse($EAReleaseDate)
-            $Game.Introduction.'release history' += "On $($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US"))) the game was released to Early Access on Steam."
-          } catch {
-            
-          }
+            $Game.Introduction.'release history' += "On $($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US"))) the game was released to Early Access on Steam"
+
+            if ($ReleaseDate -ne 'EA' -and $ReleaseDate -ne 'TBA')
+            {
+              try {
+                $DateTime = [datetime]::Parse($ReleaseDate)
+                $Game.Introduction.'release history' += ", with an official release on $($DateTime.ToString('MMMM d, yyyy', [CultureInfo]("en-US")))"
+              } catch { }
+            }
+            $Game.Introduction.'release history' += '.'
+          } catch { }
         }
       }
     }
