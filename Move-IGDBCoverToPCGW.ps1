@@ -141,7 +141,8 @@ Process
     { $Result.IGDB = Get-IGDBGame -Where "name = `"$IGDBQuery`" & platforms = (6)" -Fields 'cover.*' }
   }
 
-  if (-not $Result.IGDB)
+  if (-not $Result.IGDB -or
+      -not $Result.IGDB.cover)
   {
     Write-Warning "Found no cover on IGDB for $IGDBQuery."
     return
