@@ -3,14 +3,20 @@ Param (
   <#
     Generic
   #>
-  [Parameter(Mandatory, ValueFromPipelineByPropertyName, ParameterSetName = 'Generic')]
+  [Parameter(Mandatory, ValueFromPipelineByPropertyName, ParameterSetName = 'Generic', Position=0)]
   [ValidateNotNullOrEmpty()]
   [string]$Name,
+
+  # Optional, if different from -Name
+  [string]$IGDBQuery,
 
   <#
     Switches
   #>
-  [switch]$Force,   # Ignore warnings (i.e. overwrite existing or previously removed files)
+  [switch]$Search,
+  [switch]$AllPlatforms,
+  [switch]$NoConfirm, # Suppress the confirmation prompt
+  [switch]$Force,     # Ignore warnings (i.e. overwrite existing or previously removed files)
 
   <#
     Debug
@@ -114,11 +120,30 @@ Process
     return
   }
 
-  $Result.IGDB = Get-IGDBGame -Where "name = `"$Name`" & platforms = (6)" -Fields 'cover.*'
+  if ([string]::IsNullOrWhiteSpace($IGDBQuery))
+  { $IGDBQuery = $Name }
+
+  # Search mode
+  if ($Search)
+  {
+    if ($AllPlatforms)
+    { $Result.IGDB = Get-IGDBGame -Search $IGDBQuery -Fields 'cover.*' }
+    else
+    { $Result.IGDB = Get-IGDBGame -Search $IGDBQuery -Where 'platforms = (6)' -Fields 'cover.*' }
+  }
+
+  # Name mode
+  else
+  {
+    if ($AllPlatforms)
+    { $Result.IGDB = Get-IGDBGame -Where "name = `"$IGDBQuery`"" -Fields 'cover.*' }
+    else
+    { $Result.IGDB = Get-IGDBGame -Where "name = `"$IGDBQuery`" & platforms = (6)" -Fields 'cover.*' }
+  }
 
   if (-not $Result.IGDB)
   {
-    Write-Warning "Found no cover on IGDB for $Name."
+    Write-Warning "Found no cover on IGDB for $IGDBQuery."
     return
   }
 
@@ -127,6 +152,17 @@ Process
   $StatusCode = 200
   $Link       = "https:" + ($Result.IGDB.cover[0].url.Replace('t_thumb', 't_original'))
   $ext        = $Link.Split('.')[-1]
+
+  if (-not $NoConfirm)
+  {
+    Write-Host "Discovered image: $Link"
+    do {
+      $Prompt = Read-Host "Do you want to use the image? [y/n]"
+
+      if ($Prompt -eq 'n')
+      { return }
+    } while ($Prompt -ne 'y')
+  }
 
   # IGDB typically uploads t_original as PNG apparently, so lets just assume most of 'em are PNGs by default
   if ($ext -eq 'jpg')
@@ -169,10 +205,9 @@ Process
     $FilePath = Get-Item $FilePath
     $PCGWFile = "$Name cover.$ext"
 
-    $PCGWFile = $PCGWFile.Replace(': ', ' - ')
-    $PCGWFile = $PCGWFile.Replace(':', ' ')
+    $PCGWFile = $PCGWFile.Replace(': ', ' ')
+    $PCGWFile = $PCGWFile.Replace(':',  ' ')
     $PCGWFile = $PCGWFile.Replace('  ', ' ')
-    $PCGWFile = $PCGWFile.Trim(' - ')
     $PCGWFile = $PCGWFile.Trim()
 
     # Upload file to PCGW
@@ -183,6 +218,7 @@ Process
       Force        = $Force
       Comment      = "Cover for [[$Name]]."
     }
+
     $Result.Upload = Import-MWFile @UploadParams -JSON
     Remove-Item -Path $FilePath.FullName -Force
 
