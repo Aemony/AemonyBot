@@ -11,6 +11,10 @@ Param (
   # Extend the lookup/search to include non-PC platforms
   [switch]$AllPlatforms,
 
+  # A limit on the number of results returned from IGDB
+  [Alias('ResultSize')]
+  [string]$Limit = 10,
+
   # WARNING: Naively assumes the first found cover is the right one, by suppressing the user verification step
   [switch]$NoVerification,
 
@@ -118,28 +122,82 @@ Process
 
     if (-not $Result.PCGW)
     {
-      $PageName = Read-Host 'Page name on PCGamingWiki'
+      $PageName = Read-Host 'Page name on PCGamingWiki (Ctrl+C to cancel)'
     }
   } while ($null -eq $Result.PCGW)
 
   do
   {
+    $Fields = $(
+      'name'
+      'first_release_date'
+      'cover.*'
+      'involved_companies.company'
+      'involved_companies.developer'
+      'involved_companies.publisher'
+      'involved_companies.porting'
+      'involved_companies.company.name'
+    )
+
     # Search mode
     if ($Search)
     {
       if ($AllPlatforms)
-      { $Result.IGDB = Find-IGDBGame -Search $Name -Fields 'cover.*' }
+      { $Result.IGDB = Find-IGDBGame -Search $Name -Fields $Fields -Limit $Limit }
       else
-      { $Result.IGDB = Find-IGDBGame -Search $Name -Where 'platforms = (3,6,14)' -Fields 'cover.*' }
+      { $Result.IGDB = Find-IGDBGame -Search $Name -Where 'platforms = (3,6,14)' -Fields $Fields -Limit $Limit }
     }
 
     # Name mode
     else
     {
       if ($AllPlatforms)
-      { $Result.IGDB = Get-IGDBGame -Where "name = `"$Name`"" -Fields 'cover.*' }
+      { $Result.IGDB = Get-IGDBGame -Where "name = `"$Name`"" -Fields $Fields -Limit $Limit }
       else
-      { $Result.IGDB = Get-IGDBGame -Where "name = `"$Name`" & platforms = (3,6,14)" -Fields 'cover.*' }
+      { $Result.IGDB = Get-IGDBGame -Where "name = `"$Name`" & platforms = (3,6,14)" -Fields $Fields -Limit $Limit }
+    }
+
+    $Result.IGDB = $Result.IGDB | Sort-Object first_release_date
+
+
+    $Index = 1
+    $Array = @()
+    foreach ($Game in $Result.IGDB)
+    {
+      $Cover = $null
+      if ($null -ne $Game.cover.url)
+      { $Cover = (($Game.cover.url.Replace('t_thumb', 't_original') -replace '^\/\/', 'https://') -join ', ') }
+
+      $Properties = [ordered]@{
+        '#'       = $Index++
+        Name      = $Game.name
+        Released  = ((Get-Date "1970-01-01 00:00:00.000Z") + ([TimeSpan]::FromSeconds($Game.first_release_date))).ToString('MMMM d, yyyy', [CultureInfo]("en-US"))
+        Developer = (($Game.involved_companies | Where-Object { $_.developer -eq $true }).company.name) -join ', '
+        Publisher = (($Game.involved_companies | Where-Object { $_.publisher -eq $true }).company.name) -join ', '
+        Cover     = $Cover
+      }
+      $Array += New-Object PSObject -Property $Properties
+    }
+    $TableColumns = @(
+      @{ e='#';         width = 3 },
+      @{ e='Name';      width = 30 },
+      @{ e='Released';  width = 19 },
+      @{ e='Developer'; width = 25 },
+      @{ e='Publisher'; width = 25 },
+      @{ e='Cover';     width = 78 }
+    )
+    $Array | Format-Table -Property $TableColumns
+
+    if ($Result.IGDB.Count -gt 1)
+    {
+      Write-Warning 'Multiple matches were found. Please select the most appropriate:'
+
+      do
+      {
+        $Index = Read-Host 'Index to use (Ctrl+C to cancel)'
+      } while ($Index -lt 1 -and $Index -gt $Array.Count)
+
+      $Result.IGDB = $Result.IGDB[$Index - 1]
     }
 
     if (-not $Result.IGDB       -or
@@ -147,7 +205,7 @@ Process
         -not $Result.IGDB.cover.url)
     {
       Write-Warning "Found no cover on IGDB for $Name."
-      $Name = Read-Host 'Alternate name'
+      $Name = Read-Host 'Alternate name (Ctrl+C to cancel)'
     }
   } while($null -eq $Result.IGDB)
 
