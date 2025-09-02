@@ -551,7 +551,7 @@ Process {
       # $Matches[1] holds the capture group
       $Before       = $Page.Wikitext
       $Link         = $Matches[1].Trim()
-      $Replacement  = $Matches[0] -replace $Link, ($Link -replace '_', ' ')
+      $Replacement  = $Matches[0].Replace($Link, $Link.Replace('_', ' '))
       $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Replacement)
       if ($Before -cne $Page.Wikitext)
       {
