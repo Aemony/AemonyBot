@@ -550,12 +550,14 @@ Process {
       # $Matches[0] holds the full match
       # $Matches[1] holds the capture group
       $Before       = $Page.Wikitext
-      $Link         = $Matches[1].Trim()
-      $Replacement  = $Matches[0].Replace($Link, $Link.Replace('_', ' '))
-      $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Replacement)
-      if ($Before -cne $Page.Wikitext)
+      if ($Link = $Matches[1].Trim())
       {
-        $Summary += ' ~strategywiki'
+        $Replacement   = $Matches[0].Replace($Link, $Link.Replace('_', ' '))
+        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Replacement)
+        if ($Before -cne $Page.Wikitext)
+        {
+          $Summary += ' ~strategywiki'
+        }
       }
     }
 #endregion
