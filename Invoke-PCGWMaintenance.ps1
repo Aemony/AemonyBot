@@ -74,6 +74,7 @@ Process {
         $Title = "GamersGate - $Title"
         $Title = $Title.Replace(' - Buy and download on GamersGate', '')
       }
+      $Matches = $null
     }
     return $Title
   }
@@ -437,6 +438,7 @@ Process {
 
       $Replacement  = "{{Infobox game/row/date|$OS|$OSDate|ref=<ref"
       $Page.Wikitext = $Page.Wikitext.Replace($Section, $Replacement)
+      $Matches = $null
     }
     if ($Before -cne $Page.Wikitext)
     {
@@ -462,6 +464,7 @@ Process {
       # Swap in the replacements
       $Replacement  = "<ref>{{Refurl|url=$Link|title=$Title|date=$LinkDate}}</ref>"
       $Page.Wikitext = $Page.Wikitext.Replace($Section, $Replacement)
+      $Matches = $null
     }
     if ($Before -cne $Page.Wikitext -and $Summary -notlike "*~refurl*")
     {
@@ -487,6 +490,7 @@ Process {
       # Swap in the replacements
       $Replacement  = "<ref>{{Refurl|url=$Link|title=$Title|date=$LinkDate}}</ref>"
       $Page.Wikitext = $Page.Wikitext.Replace($Section, $Replacement)
+      $Matches = $null
     }
     if ($Before -cne $Page.Wikitext -and $Summary -notlike "*~refurl*")
     {
@@ -512,6 +516,7 @@ Process {
       # Swap in the replacements
       $Replacement  = "<ref>{{Refurl|url=$Link|title=$Title|date=$LinkDate}}</ref>"
       $Page.Wikitext = $Page.Wikitext.Replace($Section, $Replacement)
+      $Matches = $null
     }
     if ($Before -cne $Page.Wikitext -and $Summary -notlike "*~refurl*")
     {
@@ -537,6 +542,7 @@ Process {
       # Swap in the replacements
       $Replacement  = "<ref>{{Refurl|url=$Link|title=$Title|date=$LinkDate}}</ref>"
       $Page.Wikitext = $Page.Wikitext.Replace($Section, $Replacement)
+      $Matches = $null
     }
     if ($Before -cne $Page.Wikitext -and $Summary -notlike "*~refurl*")
     {
@@ -559,6 +565,7 @@ Process {
           $Summary += ' ~strategywiki'
         }
       }
+      $Matches = $null
     }
 #endregion
 
@@ -631,6 +638,7 @@ Process {
 
       $KeyPointsBlock = $Matches[0].Clone()
       $Header         = $Matches[1].Clone()
+      $Matches = $null
 
       # Strip bullets at the beginning of the lines
       $KeyPointsTrim = ($KeyPointsBlock.Replace($Header, '') -replace '\{\{[im+\-]{2}\}\}[\s]*', "`n").Trim()
@@ -655,6 +663,7 @@ Process {
 
         # Insert the key points at the bottom of the current state section
         $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
+        $Matches = $null
       }
       
       # No 'current state' detected, so we need to create it!
@@ -674,6 +683,7 @@ Process {
 
           # Insert the key points at the bottom of the current state section
           $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
+          $Matches = $null
         }
 
         # Does the article have an introduction section at least ?
@@ -691,6 +701,7 @@ Process {
 
           # Insert the key points at the bottom of the current state section
           $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
+          $Matches = $null
         }
 
         else {
@@ -708,6 +719,7 @@ Process {
 
             # Insert the introduction + key points at the bottom of the infobox game section
             $Page.Wikitext = $Page.Wikitext.Replace($ContentBlock, $Replacement)
+            $Matches = $null
           }
         }
       }
@@ -790,6 +802,7 @@ Process {
                 return $String.Replace($Values, $Replacement)
               }
             }
+            $Matches = $null
           }
           return $String
         }
@@ -807,6 +820,7 @@ Process {
       {
         $Summary += ' ~middleware'
       }
+      $Matches = $null
     }
 #endregion
 
