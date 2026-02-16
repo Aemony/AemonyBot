@@ -146,6 +146,9 @@ if ($Force -or $Status.Wikitext -eq '1')
 
   ForEach ($Change in $RecentChanges)
   {
+    if ($Change.RecentChangesID -eq $Cache.RecentChangesID)
+    { continue }
+
     $RevisionID  = $Change.RevisionID
     $PreviousID  = $Change.PreviousID
     $Username    = $Change.User
@@ -192,6 +195,10 @@ if ($Force -or $Status.Wikitext -eq '1')
     # Used to keep track of last processed change across runs
     $Cache.RecentChangesID = $Change.RecentChangesID
     $Cache.Timestamp       = $Change.Timestamp
+
+    # Update the local cache after each page so we can abort at any moment without losing progress
+    # Only cache the RecentChangesID and Timestamp values
+    $Cache | Select-Object RecentChangesID, Timestamp | ConvertTo-Json | Out-File $script:CacheFilePath
   }
 
   if ($HookUrl -and (-not [string]::IsNullOrWhiteSpace($Body.content)))
@@ -200,10 +207,6 @@ if ($Force -or $Status.Wikitext -eq '1')
     $Output = Invoke-RestMethod -Method POST -ContentType 'application/json' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
     if ($null -ne $RecentChanges)
     { $Cache.Output += $RecentChanges }
-
-    # Update the local cache after each page so we can abort at any moment without losing progress
-    # Only cache the RecentChangesID and Timestamp values
-    $Cache | Select-Object RecentChangesID, Timestamp | ConvertTo-Json | Out-File $script:CacheFilePath
   }
 } else {
   # .Timestamp is only accessible when doing an additional API request with the -Information switch, so use .Retrieved instead

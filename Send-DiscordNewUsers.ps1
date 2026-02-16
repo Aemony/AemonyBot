@@ -1,6 +1,7 @@
 [CmdletBinding()]
 Param (
   $HookUrl            = '',
+  $WarnHookUrl        = '',
   $Start              = $null, # Timestamp from where to start # (Get-Date).AddMinutes(-5)
   [switch]$Descending,        # defaults to using an ascending order
   [switch]$Force,             # Forces the bot to run regardless of the status of the public toggle
@@ -146,6 +147,10 @@ if ($Force -or $Status.Wikitext -eq '1')
     # Used to keep track of last processed change across runs
     $Cache.LogID     = $User.LogID
     $Cache.Timestamp = $User.Timestamp
+
+    # Update the local cache after each page so we can abort at any moment without losing progress
+    # Only cache the LogID and Timestamp values
+    $Cache | Select-Object LogID, Timestamp | ConvertTo-Json | Out-File $script:CacheFilePath
   }
 
   if ($HookUrl -and (-not [string]::IsNullOrWhiteSpace($Body.content)))
@@ -154,11 +159,25 @@ if ($Force -or $Status.Wikitext -eq '1')
     $Output = Invoke-RestMethod -Method POST -ContentType 'application/json' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
     if ($null -ne $Output)
     { $Cache.Output += $Output }
-
-    # Update the local cache after each page so we can abort at any moment without losing progress
-    # Only cache the LogID and Timestamp values
-    $Cache | Select-Object LogID, Timestamp | ConvertTo-Json | Out-File $script:CacheFilePath
   }
+
+  # Risk
+  $Minutes    = 60
+  $Parameters = @{
+    Type      = 'NewUsers'
+    Ascending = $true
+    Start     = (Get-Date ((Get-Date).AddMinutes(-$Minutes).ToUniversalTime()) -UFormat '+%Y-%m-%dT%H:%M:%SZ')
+  }
+
+  $RecentUsers = Get-MWEventLog @Parameters
+
+  if ($RecentUsers.Count -gt 5)
+  {
+    $Body.content  = "## *$($RecentUsers.Count)* users was created on the wiki within the last $Minutes minutes!`n"
+    $Body.content += "This could be an indication of an unusual amount of traffic."
+    Invoke-RestMethod -Method POST -ContentType 'application/json' -Body ($Body | ConvertTo-Json) -Uri $WarnHookUrl | Out-Null
+  }
+
 } else {
   # .Timestamp is only accessible when doing an additional API request with the -Information switch, so use .Retrieved instead
   Write-Warning "Bot has been disabled as per the contents of $($Status.Name), retrieved $($Status.Retrieved)."
