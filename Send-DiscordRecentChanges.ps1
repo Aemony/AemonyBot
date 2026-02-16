@@ -180,7 +180,7 @@ if ($Force -or $Status.Wikitext -eq '1')
     if (($Body.content.Length + $NewContent.Length) -ge 2000)
     {
       $Output = $null
-      $Output = Invoke-RestMethod -Method POST -ContentType 'application/json' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
+      $Output = Invoke-RestMethod -Method POST -ContentType 'application/json; charset=utf-8' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
       Start-Sleep -Seconds 5
       $Body.content = ''
     }
@@ -204,7 +204,7 @@ if ($Force -or $Status.Wikitext -eq '1')
   if ($HookUrl -and (-not [string]::IsNullOrWhiteSpace($Body.content)))
   {
     $Output = $null
-    $Output = Invoke-RestMethod -Method POST -ContentType 'application/json' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
+    $Output = Invoke-RestMethod -Method POST -ContentType 'application/json; charset=utf-8' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
     if ($null -ne $RecentChanges)
     { $Cache.Output += $RecentChanges }
   }

@@ -132,7 +132,7 @@ if ($Force -or $Status.Wikitext -eq '1')
     if (($Body.content.Length + $NewContent.Length) -ge 2000)
     {
       $Output = $null
-      $Output = Invoke-RestMethod -Method POST -ContentType 'application/json' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
+      $Output = Invoke-RestMethod -Method POST -ContentType 'application/json; charset=utf-8' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
       Start-Sleep -Seconds 5
       $Body.content = ''
     }
@@ -156,7 +156,7 @@ if ($Force -or $Status.Wikitext -eq '1')
   if ($HookUrl -and (-not [string]::IsNullOrWhiteSpace($Body.content)))
   {
     $Output = $null
-    $Output = Invoke-RestMethod -Method POST -ContentType 'application/json' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
+    $Output = Invoke-RestMethod -Method POST -ContentType 'application/json; charset=utf-8' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
     if ($null -ne $Output)
     { $Cache.Output += $Output }
   }
@@ -175,7 +175,7 @@ if ($Force -or $Status.Wikitext -eq '1')
   {
     $Body.content  = "## *$($RecentUsers.Count)* users was created on the wiki within the last $Minutes minutes!`n"
     $Body.content += "This could be an indication of an unusual amount of traffic."
-    Invoke-RestMethod -Method POST -ContentType 'application/json' -Body ($Body | ConvertTo-Json) -Uri $WarnHookUrl | Out-Null
+    Invoke-RestMethod -Method POST -ContentType 'application/json; charset=utf-8' -Body ($Body | ConvertTo-Json) -Uri $WarnHookUrl | Out-Null
   }
 
 } else {
