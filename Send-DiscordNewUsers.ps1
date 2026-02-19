@@ -119,7 +119,7 @@ if ($Force -or $Status.Wikitext -eq '1')
     if ($User.LogID -eq $Cache.LogID)
     { continue }
 
-    $Username    = $User.User.Trim('User:')
+    $Username    = $User.User
     $UsernameURI = $Username.Replace(' ', '_')
     $UserPage    = "https://www.pcgamingwiki.com/wiki/User:$UsernameURI"
     $UserTalk    = "https://www.pcgamingwiki.com/wiki/User_talk:$UsernameURI"
