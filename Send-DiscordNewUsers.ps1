@@ -173,7 +173,7 @@ if ($Force -or $Status.Wikitext -eq '1')
 
   if ($RecentUsers.Count -gt 5)
   {
-    $Body.content  = "## *$($RecentUsers.Count)* users was created on the wiki within the last $Minutes minutes!`n"
+    $Body.content  = "## [*$($RecentUsers.Count)* users](https://www.pcgamingwiki.com/wiki/Special:ListUsers?username=&group=&creationSort=1&desc=1&wpsubmit=&wpFormIdentifier=mw-listusers-form&limit=500) was created on the wiki within the last $Minutes minutes!`n"
     $Body.content += "This could be an indication of an unusual amount of traffic."
     Invoke-RestMethod -Method POST -ContentType 'application/json; charset=utf-8' -Body ($Body | ConvertTo-Json) -Uri $WarnHookUrl | Out-Null
   }
