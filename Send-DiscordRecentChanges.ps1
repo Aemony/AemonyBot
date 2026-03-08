@@ -184,7 +184,9 @@ if ($Force -or $Status.Wikitext -eq '1')
       $NewContent += ' '
     }
 
-    $NewContent += "` <t:$UnixSeconds> . . **[$PageName]($PageLink)** ([diff]($DiffLink) | [history]($HistoryLink)) . . **$DiffSize** . . **[$Username]($UserPage)** ([talk]($UserTalk) | [contribs]($UserContr))"
+    $NewContent += '` '
+
+    $NewContent += "<t:$UnixSeconds> . . **[$PageName]($PageLink)** ([diff]($DiffLink) | [history]($HistoryLink)) . . **$DiffSize** . . **[$Username]($UserPage)** ([talk]($UserTalk) | [contribs]($UserContr))"
 
     if (-not [string]::IsNullOrWhiteSpace($Comment))
     {
@@ -219,6 +221,7 @@ if ($Force -or $Status.Wikitext -eq '1')
   {
     $Output = $null
     $Output = Invoke-RestMethod -Method POST -ContentType 'application/json; charset=utf-8' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
+    $Body.content = ''
     if ($null -ne $RecentChanges)
     { $Cache.Output += $RecentChanges }
   }
