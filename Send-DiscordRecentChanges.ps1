@@ -170,7 +170,21 @@ if ($Force -or $Status.Wikitext -eq '1')
       $DiffSize  = "+$DiffSize"
     }
 
-    $NewContent  = "<t:$UnixSeconds> . . **[$PageName]($PageLink)** ([diff]($DiffLink) | [history]($HistoryLink)) . . **$DiffSize** . . **[$Username]($UserPage)** ([talk]($UserTalk) | [contribs]($UserContr))"
+    $NewContent = '`'
+
+    if ($Change.New) {
+      $NewContent += 'N'
+    } else {
+      $NewContent += ' '
+    }
+
+    if ($Change.Minor) {
+      $NewContent += 'm'
+    } else {
+      $NewContent += ' '
+    }
+
+    $NewContent += "` <t:$UnixSeconds> . . **[$PageName]($PageLink)** ([diff]($DiffLink) | [history]($HistoryLink)) . . **$DiffSize** . . **[$Username]($UserPage)** ([talk]($UserTalk) | [contribs]($UserContr))"
 
     if (-not [string]::IsNullOrWhiteSpace($Comment))
     {
