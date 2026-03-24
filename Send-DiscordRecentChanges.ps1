@@ -154,7 +154,7 @@ if ($Force -or $Status.Wikitext -eq '1')
     $Username    = $Change.User
     $UsernameURI = $Username.Replace(' ', '_')
     $PageName    = $Change.Name
-    $PageNameURI = $PageName.Replace(' ', '_')
+    $PageNameURI = [uri]::EscapeDataString($PageName.Replace(' ', '_'))
     $PageLink    = "https://www.pcgamingwiki.com/w/index.php?title=$PageNameURI"
     $DiffLink    = "$PageLink&type=revision&diff=$RevisionID&oldid=$PreviousID"
     $HistoryLink = "$PageLink&action=history"
