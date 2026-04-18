@@ -85,7 +85,7 @@ $Session = $false
 
 if (-not (Get-Module MediaWiki))
 {
-  Import-Module   ..\MediaWiki
+  Import-Module   ..\Modules\MediaWiki
   $Module = $true
 }
 

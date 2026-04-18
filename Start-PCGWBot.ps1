@@ -32,6 +32,7 @@ Try { Stop-Transcript | Out-Null } Catch [System.InvalidOperationException] { }
 
 # Start script
 
+$ScriptPath = Split-Path ($MyInvocation.MyCommand.Path) -Parent
 $ScriptName = ($MyInvocation.MyCommand.Name) -replace '.ps1', ''
 Start-Transcript "$ScriptName.log" | Out-Null
 Write-Verbose "Transcript started, output file is $ScriptName.log"
@@ -137,7 +138,7 @@ if ($Force -or $Status.Wikitext -eq '1')
   ForEach ($Change in $RecentChanges)
   {
     $Output = $null
-    $Output = (.\Invoke-PCGWMaintenance.ps1 -ID $Change.ID)
+    $Output = (& "$ScriptPath\Invoke-PCGWMaintenance.ps1" -ID $Change.ID)
     if ($null -ne $Output)
     { $Cache.Output += $Output }
 
