@@ -145,8 +145,9 @@ if ($Force -or $Status.Wikitext -eq '1')
     $Body.content   += $NewContent
 
     # Used to keep track of last processed change across runs
+    # Add a second to exclude this particular user from future results
     $Cache.LogID     = $User.LogID
-    $Cache.Timestamp = $User.Timestamp
+    $Cache.Timestamp = (([DateTimeOffset]$User.Timestamp).AddSeconds(1).ToString('u')).Replace(" ", "T")
 
     # Update the local cache after each page so we can abort at any moment without losing progress
     # Only cache the LogID and Timestamp values
@@ -171,7 +172,7 @@ if ($Force -or $Status.Wikitext -eq '1')
 
   $RecentUsers = Get-MWEventLog @Parameters
 
-  if ($RecentUsers.Count -gt 5)
+  if ($RecentUsers.Count -ge 10)
   {
     $Body.content  = "## [*$($RecentUsers.Count)* users](https://www.pcgamingwiki.com/wiki/Special:ListUsers?username=&group=&creationSort=1&desc=1&wpsubmit=&wpFormIdentifier=mw-listusers-form&limit=500) was created on the wiki within the last $Minutes minutes!`n"
     $Body.content += "This could be an indication of an unusual amount of traffic."

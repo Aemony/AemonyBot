@@ -160,7 +160,8 @@ if ($Force -or $Status.Wikitext -eq '1')
     $HistoryLink = "$PageLink&action=history"
     $UserPage    = "https://www.pcgamingwiki.com/wiki/User:$UsernameURI"
     $UserTalk    = "https://www.pcgamingwiki.com/wiki/User_talk:$UsernameURI"
-    $UserContr   = "https://www.pcgamingwiki.com/wiki/Special:Contributions/$UsernameURI"
+    $ContribLink = 'https://www.pcgamingwiki.com/wiki/Special:Contributions/'
+    $UserContr   = "$ContribLink$UsernameURI"
     $UnixSeconds = ([DateTimeOffset]$Change.Timestamp).ToUnixTimeSeconds()
     $Comment     = $Change.Comment
 
@@ -190,6 +191,12 @@ if ($Force -or $Status.Wikitext -eq '1')
 
     if (-not [string]::IsNullOrWhiteSpace($Comment))
     {
+     #$Comment = $Comment -replace '\[\[Special:Contributions\/(.*?)\|.*?\]\]', '[$1](https://www.pcgamingwiki.com/wiki/Special:Contributions/$1)'
+     #$Comment = $Comment -replace '\[\[User talk:(.*?)\|talk\]\]',             '[talk](https://www.pcgamingwiki.com/wiki/User_talk:$1)'
+
+      # This covers all internal wiki links
+      $Comment = $Comment -replace '\[\[(.*?)\|(.*?)\]\]',                      '[$2](https://www.pcgamingwiki.com/wiki/$1)'
+      $Comment = $Comment -replace '\[\[(.*?)\]\]',                             '[$1](https://www.pcgamingwiki.com/wiki/$1)'
       $NewContent += " (*$Comment*)"
     }
 
