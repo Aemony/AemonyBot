@@ -17,7 +17,7 @@ Param (
 
 Begin {
   # Configuration
-  $ProgressPreference = 'SilentlyContinue' # Suppress progress bar (speeds up Invoke-WebRequest by a ton)
+  $script:ProgressPreference = 'SilentlyContinue' # Suppress progress bar (speeds up Invoke-WebRequest by a ton)
 }
 
 Process {

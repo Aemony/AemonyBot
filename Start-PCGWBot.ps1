@@ -38,10 +38,10 @@ Start-Transcript "$ScriptName.log" | Out-Null
 Write-Verbose "Transcript started, output file is $ScriptName.log"
 
 # Script variable to indicate the location of the local cache
-$script:CacheFilePath = $env:LOCALAPPDATA + '\PowerShell\PCGWMaintenanceBot\cache.json'
+$CacheFilePath = $env:LOCALAPPDATA + '\PowerShell\PCGWMaintenanceBot\cache.json'
 
 # Global configurations
-$script:EnablePage         = 'User:AemonyBot/Enabled' # Page to check between each processed page to see if the bot should continue or not.
+$EnablePage         = 'User:AemonyBot/Enabled' # Page to check between each processed page to see if the bot should continue or not.
 $script:ProgressPreference = 'SilentlyContinue'       # Suppress progress bar (speeds up Invoke-WebRequest by a ton)
 
 $CacheTemp = $null
@@ -54,21 +54,21 @@ $Cache     = [ordered]@{
 # Reset the cache
 If ($Reset)
 {
-  If ((Test-Path $script:CacheFilePath) -eq $true)
-  { Remove-Item $script:CacheFilePath }
+  If ((Test-Path $CacheFilePath) -eq $true)
+  { Remove-Item $CacheFilePath }
 }
 
 
 # Read the cache
 If ($Persistent)
 {
-  if ((Test-Path $script:CacheFilePath) -eq $true)
+  if ((Test-Path $CacheFilePath) -eq $true)
   {
     Write-Warning "Using data from last successful run. Use -Reset to recreate or bypass the stored data."
     Try
     {
       # Try to load the cache.
-      $CacheTemp = Get-Content $script:CacheFilePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+      $CacheTemp = Get-Content $CacheFilePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
       $Cache     = $CacheTemp
     }
     Catch [System.Management.Automation.ItemNotFoundException], [System.ArgumentException] {
@@ -86,7 +86,7 @@ If ($Persistent)
 
   # Create the file first using New-Item with -Force parameter so missing directories are also created.
   else
-  { New-Item -Path $script:CacheFilePath -ItemType "file" -Force | Out-Null }
+  { New-Item -Path $CacheFilePath -ItemType "file" -Force | Out-Null }
 }
 
 If ([string]::IsNullOrEmpty($Start) -eq $false)
@@ -100,7 +100,7 @@ $Session = $false
 
 if (-not (Get-Module MediaWiki))
 {
-  Import-Module   ..\MediaWiki
+  Import-Module   ..\Modules\MediaWiki
   $Module = $true
 }
 
@@ -111,7 +111,7 @@ if (-not (Get-MWSession))
 }
 
 # A publicly accessible toggle for the bot
-$Status = Get-MWPage -Name $script:EnablePage -Wikitext
+$Status = Get-MWPage -Name $EnablePage -Wikitext
 
 if ($Force -or $Status.Wikitext -eq '1')
 {
@@ -149,10 +149,13 @@ if ($Force -or $Status.Wikitext -eq '1')
     # Update the local cache after each page so we can abort at any moment without losing progress
     # Only cache the RecentChangesID and Timestamp values
     If ($Persistent)
-    { $Cache | Select-Object RecentChangesID, Timestamp | ConvertTo-Json | Out-File $script:CacheFilePath }
+    { $Cache | Select-Object RecentChangesID, Timestamp | ConvertTo-Json | Out-File $CacheFilePath }
     
     # Check the status after each processed page
-    $Status = Get-MWPage -Name $script:EnablePage -Wikitext
+    #$Status = Get-MWPage -Name $EnablePage -Wikitext
+    $Status = @{
+      Wikitext = 1
+    }
     if ($Force -eq $false -and $Status.Wikitext -ne '1')
     {
       # .Timestamp is only accessible when doing an additional API request with the -Information switch, so use .Retrieved instead
