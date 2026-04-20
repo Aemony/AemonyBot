@@ -191,12 +191,23 @@ if ($Force -or $Status.Wikitext -eq '1')
 
     if (-not [string]::IsNullOrWhiteSpace($Comment))
     {
-     #$Comment = $Comment -replace '\[\[Special:Contributions\/(.*?)\|.*?\]\]', '[$1](https://www.pcgamingwiki.com/wiki/Special:Contributions/$1)'
-     #$Comment = $Comment -replace '\[\[User talk:(.*?)\|talk\]\]',             '[talk](https://www.pcgamingwiki.com/wiki/User_talk:$1)'
+      # Convert all internal wiki links to hyperlinks
+      #   ...while replacing spaces -> underscores
 
-      # This covers all internal wiki links
-      $Comment = $Comment -replace '\[\[(.*?)\|(.*?)\]\]',                      '[$2](https://www.pcgamingwiki.com/wiki/$1)'
-      $Comment = $Comment -replace '\[\[(.*?)\]\]',                             '[$1](https://www.pcgamingwiki.com/wiki/$1)'
+      # [[$1|$2]] -> [$2](https://www.pcgamingwiki.com/wiki/$1)
+      while ($Comment -Match '\[\[([^\[\|\]]*?)\|([^\[\|\]]*?)\]\]')
+      {
+        $NewString = "[$($Matches[2])](https://www.pcgamingwiki.com/wiki/$($Matches[1].Replace(' ', '_')))"
+        $Comment = $Comment.Replace($Matches[0], $NewString)
+      }
+
+      # [[$1]] -> [$1](https://www.pcgamingwiki.com/wiki/$1)
+      while ($Comment -Match '\[\[([^\[\|\]]*?)\]\]')
+      {
+        $NewString = "[$($Matches[1])](https://www.pcgamingwiki.com/wiki/$($Matches[1].Replace(' ', '_')))"
+        $Comment = $Comment.Replace($Matches[0], $NewString)
+      }
+      
       $NewContent += " (*$Comment*)"
     }
 
