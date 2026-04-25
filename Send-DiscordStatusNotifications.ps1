@@ -26,7 +26,6 @@ $script:ProgressPreference = 'SilentlyContinue'              # Suppress progress
 $CacheTemp  = $null
 $Cache      = [ordered]@{
   Timestamp = '' # Last updated
-  Output    = @()
 }
 
 # Reset the cache
@@ -41,44 +40,35 @@ If ($Reset)
 if ((Test-Path $script:CacheFilePath) -eq $true)
 {
   Write-Warning "Using data from last successful run. Use -Reset to recreate or bypass the stored data."
-  Try
-  {
+  Try {
     # Try to load the cache.
     $CacheTemp = Get-Content $script:CacheFilePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
     $Cache     = $CacheTemp
-  }
-  Catch [System.Management.Automation.ItemNotFoundException], [System.ArgumentException] {
+  } Catch [System.Management.Automation.ItemNotFoundException], [System.ArgumentException] {
     # Handle corrupt cache
     Write-Warning "The local cache could not be found or was corrupt.`n"
     $CacheTemp = $null
-  }
-  Catch
-  {
+  } Catch {
     # Unknown exception
     Write-Warning "Unknown error occurred when trying to read the local cache."
     $CacheTemp = $null
   }
+} else {
+  # Create the persistent cache using New-Item with -Force parameter so missing directories are also created.
+  New-Item -Path $script:CacheFilePath -ItemType "file" -Force | Out-Null
 }
-
-# Create the persistent cache using New-Item with -Force parameter so missing directories are also created.
-else
-{ New-Item -Path $script:CacheFilePath -ItemType "file" -Force | Out-Null }
 
 # If something is wrong with the cache, reset it
 if ($null -eq $Cache.Timestamp)
 {
-  $Cache      = [ordered]@{
+  $Cache = [ordered]@{
     Timestamp = '' # Last updated
-    Output    = @()
   }
 }
 
 # If we have no cached timestamp, default to the last 24 hours
 If ([string]::IsNullOrEmpty($Cache.Timestamp))
 { $Cache.Timestamp = Get-Date ((Get-Date).AddHours(-24).ToUniversalTime()) -UFormat '+%Y-%m-%dT%H:%M:%SZ' }
-
-# Need to declare this again in case reading the cache overwrote it...
-$Cache | Add-Member -MemberType NoteProperty -Name Output -Value @()
 
 # Status Page
 $Parameters       = @{
@@ -94,6 +84,8 @@ $Body = [PSCustomObject]@{
   content    = ''
 }
 
+$Output = $null
+
 try
 {
   $Response   = Invoke-WebRequest @Parameters
@@ -103,7 +95,7 @@ try
     throw 'HTTP status code != 200 !'
   }
 
-  $StatusPage = [xml]($Response).Content
+  $StatusPage = [xml]($Response.Content)
 
   # Only do something if there is actually something to do...
   if ($StatusPage.feed.updated -ne $Cache.Timestamp)
@@ -135,17 +127,15 @@ try
     $Cache.Timestamp = $StatusPage.feed.updated
 
     # Update the local cache after each page so we can abort at any moment without losing progress
-    $Cache | Select-Object Timestamp | ConvertTo-Json | Out-File $script:CacheFilePath
+    $Cache | ConvertTo-Json | Out-File $script:CacheFilePath
 
     if ($HookUrl -and (-not [string]::IsNullOrWhiteSpace($Body.content)))
     {
-      $Output = $null
       $Output = Invoke-RestMethod -Method POST -ContentType 'application/json; charset=utf-8' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
-      if ($null -ne $Output)
-      { $Cache.Output += $Output }
-    } else {
-      Write-Warning 'No new updates were found since last check.'
+      $Output
     }
+  } else {
+    Write-Warning 'No new updates were found since last check.'
   }
 } catch {
   throw $_
