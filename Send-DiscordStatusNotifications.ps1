@@ -111,7 +111,10 @@ try
 
       $UnixSeconds    = ([DateTimeOffset]$Entry.updated).ToUnixTimeSeconds()
 
-      $NewContent  = "<t:$UnixSeconds> . . **[$($Entry.title)]($($Entry.link.href))** - "
+      $Title = ($Entry.title).Replace(' seems to be down', '')
+      $Link  = $Entry.link.href
+
+      $NewContent  = "<t:$UnixSeconds> . . **[$Title]($Link)** - "
 
       if ($IsServiceDown)
       {
