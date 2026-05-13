@@ -111,7 +111,7 @@ try
 
       $UnixSeconds    = ([DateTimeOffset]$Entry.updated).ToUnixTimeSeconds()
 
-      $Title = ($Entry.title).Replace(' seems to be down', '')
+      $Title = ($Entry.title).Replace('Service','').Replace(' seems to be down','')
       $Link  = $Entry.link.href
 
       $NewContent  = "<t:$UnixSeconds> . . **[$Title]($Link)** - "
@@ -121,6 +121,11 @@ try
         $NewContent += "**New**: Service has become unresponsive."
       } else {
         $NewContent += "**Resolved**: Service is back up."
+      }
+
+      if (-not [string]::IsNullOrWhiteSpace($Body.content))
+      {
+        $Body.content += "`n"
       }
 
       $Body.content += $NewContent
@@ -134,7 +139,7 @@ try
 
     if ($HookUrl -and (-not [string]::IsNullOrWhiteSpace($Body.content)))
     {
-      $Output = Invoke-RestMethod -Method POST -ContentType 'application/json; charset=utf-8' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
+      $Output = Invoke-RestMethod -Method POST -ContentType 'application/json;charset=utf-8' -Body ($Body | ConvertTo-Json) -Uri $HookUrl
       $Output
     }
   } else {

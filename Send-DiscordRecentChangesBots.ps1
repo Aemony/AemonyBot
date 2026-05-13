@@ -2,7 +2,7 @@
 Param (
   [string]$ResultSize = 100,
   [Alias("Limit")]
-  $ExcludeUser        = 'AemonyBot',
+  $ExcludeUser        = '',
   $Namespace          = @(
     '' # Main namespace
     'Company'
@@ -38,7 +38,7 @@ Start-Transcript "$ScriptName.log" | Out-Null
 Write-Verbose "Transcript started, output file is $ScriptName.log"
 
 # Script variable to indicate the location of the local cache
-$script:CacheFilePath = $env:LOCALAPPDATA + '\PowerShell\PCGWMaintenanceBot\discord_rc.json'
+$script:CacheFilePath = $env:LOCALAPPDATA + '\PowerShell\PCGWMaintenanceBot\discord_rcbots.json'
 
 # Global configurations
 $script:EnablePage         = 'User:AemonyBot/DiscordEnabled' # Page to check between each processed page to see if the bot should continue or not.
@@ -122,7 +122,7 @@ if ($Force -or $Status.Wikitext -eq '1')
     Namespace      = $Namespace
     Type           = @('edit', 'new')
     Properties     = @('comment', 'flags', 'ids', 'loginfo', 'parsedcomment', 'tags', 'timestamp', 'title', 'user', 'userid', 'sizes')
-    Filter         = @('!bot')
+    Filter         = @('bot')
   }
 
   if (-not $Descending)
