@@ -867,8 +867,11 @@ Process {
     # Space between bullets and words
     $Page.Wikitext = $Page.Wikitext -replace '\{\{(\+{2}|\-{2}|i{2}|m{2})\}\}(\w)', '{{$1}} $2'
 
-    # Correct category links
-    $Page.Wikitext = $Page.Wikitext -replace "\[\[:Category:([0-9a-zA-Z\-\/ \(\)_']+)\|[0-9a-zA-Z\-\/ \(\)_']+\]\]", '{{Glossary:$1}}'
+    # Correct category links, but only on pages without links to lists...
+    if (-not ($Page.Wikitext.Contains('[[:Category:Lists of ')))
+    {
+      $Page.Wikitext = $Page.Wikitext -replace "\[\[:Category:([0-9a-zA-Z\-\/ \(\)_']+)\|[0-9a-zA-Z\-\/ \(\)_']+\]\]", '{{Glossary:$1}}'
+    }
 
     # Convert some external links into external ones:
     $Page.Wikitext = $Page.Wikitext.Replace('[https://reshade.me ReShade]', '[[ReShade]]')
