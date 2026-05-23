@@ -840,6 +840,71 @@ Process {
       }
     }
 
+    # Input: directinput prompts
+    if (-not ($Page.Wikitext.Contains("|directinput prompts")))
+    {
+      if ($Page.Wikitext -match '\|playstation controllers\s+=(.+)\n')
+      {
+        # $Matches[0] holds the full match
+        # $Matches[1] holds the capture group
+        $Insertion = "|directinput prompts           = `n|directinput prompts notes     = `n"
+        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
+        $Matches = $null
+      }
+    }
+
+    # Input: directinput controllers
+    if (-not ($Page.Wikitext.Contains("|directinput controllers")))
+    {
+      if ($Page.Wikitext -match '\|directinput prompts\s+=(.+)\n')
+      {
+        # $Matches[0] holds the full match
+        # $Matches[1] holds the capture group
+        $Insertion = "|directinput controllers       = `n|directinput controllers notes = `n"
+        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
+        $Matches = $null
+      }
+    }
+
+    # Input: dualsense adaptive trigger support modes
+    if (-not ($Page.Wikitext.Contains("|dualsense adaptive trigger support modes")))
+    {
+      if ($Page.Wikitext -match '\|dualsense adaptive trigger support notes\s+=')
+      {
+        # $Matches[0] holds the full match
+        # $Matches[1] holds the capture group
+        $Insertion = "|dualsense adaptive trigger support modes = `n"
+        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
+        $Matches = $null
+      }
+    }
+
+    # Input: nintendo controllers
+    if (-not ($Page.Wikitext.Contains("|nintendo controllers")))
+    {
+      if ($Page.Wikitext -match '\|tracked motion controllers\s+=(.+)\n')
+      {
+        # $Matches[0] holds the full match
+        # $Matches[1] holds the capture group
+        $Insertion = "|nintendo controllers          = `n|nintendo controller models    = `n|nintendo controllers notes    = `n|nintendo prompts              = `n|nintendo prompts notes        = `n|nintendo button layout        = `n|nintendo button layout notes  = `n|nintendo motion sensors       = `n|nintendo motion sensors modes = `n|nintendo motion sensors notes = `n|nintendo connection modes     = `n|nintendo connection modes notes = `n"
+        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
+        $Matches = $null
+      }
+    }
+
+    # Input: peripheral devices
+    if (-not ($Page.Wikitext.Contains("|peripheral devices")))
+    {
+      if ($Page.Wikitext -match '\|other button prompts\s+=(.+)\n')
+      {
+        # $Matches[0] holds the full match
+        # $Matches[1] holds the capture group
+        $Insertion = "|peripheral devices            = `n|peripheral device types       = `n|peripheral devices notes      = `n"
+        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
+        $Matches = $null
+      }
+    }
+
     if ($Before -cne $Page.Wikitext)
     {
       $Summary += ' +parameters'
