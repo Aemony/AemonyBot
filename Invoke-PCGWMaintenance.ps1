@@ -824,6 +824,28 @@ Process {
     }
 #endregion
 
+#region Add Missing Template Parameters
+    $Before       = $Page.Wikitext
+
+    # Save game cloud syncing: iCloud
+    if (-not ($Page.Wikitext.Contains("|icloud notes")))
+    {
+      if ($Page.Wikitext -match '\|steam cloud\s+=(.+)\n')
+      {
+        # $Matches[0] holds the full match
+        # $Matches[1] holds the capture group
+        $Insertion = "|icloud                    = `n|icloud notes              = `n"
+        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
+        $Matches = $null
+      }
+    }
+
+    if ($Before -cne $Page.Wikitext)
+    {
+      $Summary += ' +parameters'
+    }
+#endregion
+
 #region Misc
     $Before       = $Page.Wikitext
 
@@ -844,6 +866,9 @@ Process {
 
     # Space between bullets and words
     $Page.Wikitext = $Page.Wikitext -replace '\{\{(\+{2}|\-{2}|i{2}|m{2})\}\}(\w)', '{{$1}} $2'
+
+    # Correct category links
+    $Page.Wikitext = $Page.Wikitext -replace "\[\[:Category:([0-9a-zA-Z\-\/ \(\)_']+)\|[0-9a-zA-Z\-\/ \(\)_']+\]\]", '{{Glossary:$1}}'
 
     # Convert some external links into external ones:
     $Page.Wikitext = $Page.Wikitext.Replace('[https://reshade.me ReShade]', '[[ReShade]]')
