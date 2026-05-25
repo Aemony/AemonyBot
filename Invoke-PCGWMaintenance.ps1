@@ -324,7 +324,7 @@ function Add-MissingTemplateParameters
         $Matches = $null
       }
     }
-    
+
     $InputObject
   }
 }
@@ -861,6 +861,8 @@ function Add-MissingTemplateParameters
 
 #region Add Missing Template Parameters
     $Before       = $Page.Wikitext
+
+    # Needs to run from bottom -> top, since it prepends _above_ another template as that is the easiest
 
     # Save game cloud syncing: iCloud
     $AddMissingTemplateParam = @{
