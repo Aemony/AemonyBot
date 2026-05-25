@@ -551,7 +551,7 @@ Process {
 #endregion
 
 #region StrategyWiki
-    if ($Page.Wikitext -match '\|strategywiki\s+=(.+)\n')
+    if ($Page.Wikitext -match '\|strategywiki\s*=(.+)\n')
     {
       # $Matches[0] holds the full match
       # $Matches[1] holds the capture group
@@ -785,7 +785,7 @@ Process {
 
         process
         {
-          if ($Template -match "\|$Parameter\s+=(.+)\n")
+          if ($Template -match "\|$Parameter\s*=(.+)\n")
           {
             $Values = $Matches[1].Trim()
             if (-not [string]::IsNullOrWhiteSpace($Values))
@@ -830,7 +830,7 @@ Process {
     # Save game cloud syncing: iCloud
     if (-not ($Page.Wikitext.Contains("|icloud notes")))
     {
-      if ($Page.Wikitext -match '\|steam cloud\s+=(.+)\n')
+      if ($Page.Wikitext -match '\|steam cloud\s*=(.+)\n')
       {
         # $Matches[0] holds the full match
         # $Matches[1] holds the capture group
@@ -843,7 +843,7 @@ Process {
     # Input: directinput prompts
     if (-not ($Page.Wikitext.Contains("|directinput prompts")))
     {
-      if ($Page.Wikitext -match '\|playstation controllers\s+=(.+)\n')
+      if ($Page.Wikitext -match '\|playstation controllers\s*=(.+)\n')
       {
         # $Matches[0] holds the full match
         # $Matches[1] holds the capture group
@@ -856,7 +856,7 @@ Process {
     # Input: directinput controllers
     if (-not ($Page.Wikitext.Contains("|directinput controllers")))
     {
-      if ($Page.Wikitext -match '\|directinput prompts\s+=(.+)\n')
+      if ($Page.Wikitext -match '\|directinput prompts\s*=(.+)\n')
       {
         # $Matches[0] holds the full match
         # $Matches[1] holds the capture group
@@ -869,7 +869,7 @@ Process {
     # Input: dualsense adaptive trigger support modes
     if (-not ($Page.Wikitext.Contains("|dualsense adaptive trigger support modes")))
     {
-      if ($Page.Wikitext -match '\|dualsense adaptive trigger support notes\s+=')
+      if ($Page.Wikitext -match '\|dualsense adaptive trigger support notes\s*=')
       {
         # $Matches[0] holds the full match
         # $Matches[1] holds the capture group
@@ -882,7 +882,7 @@ Process {
     # Input: nintendo controllers
     if (-not ($Page.Wikitext.Contains("|nintendo controllers")))
     {
-      if ($Page.Wikitext -match '\|tracked motion controllers\s+=(.+)\n')
+      if ($Page.Wikitext -match '\|tracked motion controllers\s*=(.+)\n')
       {
         # $Matches[0] holds the full match
         # $Matches[1] holds the capture group
@@ -895,7 +895,7 @@ Process {
     # Input: peripheral devices
     if (-not ($Page.Wikitext.Contains("|peripheral devices")))
     {
-      if ($Page.Wikitext -match '\|other button prompts\s+=(.+)\n')
+      if ($Page.Wikitext -match '\|other button prompts\s*=(.+)\n')
       {
         # $Matches[0] holds the full match
         # $Matches[1] holds the capture group
