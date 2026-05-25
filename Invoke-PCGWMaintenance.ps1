@@ -294,7 +294,42 @@ Process {
   }
 #endregion
 
+#region Add-MissingTemplateParameters
+function Add-MissingTemplateParameters
+{
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory, ValueFromPipeline)]
+    [string]$InputObject,
+    
+    [Parameter(Mandatory)]
+    [string]$DetectionString, # |peripheral devices
 
+    [Parameter(Mandatory)]
+    [string]$InsertionText,   # |peripheral devices            = `n|peripheral device types       = `n|peripheral devices notes      = `n
+
+    [Parameter(Mandatory)]
+    [string]$PrependBefore    # \|other button prompts\s*=(.+)\n
+  )
+
+  Process
+  {
+    if (-not ($InputObject.Contains($DetectionString)))
+    {
+      if ($InputObject -match $PrependBefore)
+      {
+        # $Matches[0] holds the full match
+        # $Matches[1] holds the capture group
+        $InputObject  = $InputObject.Replace($Matches[0], $InsertionText + $Matches[0])
+        $Matches = $null
+      }
+    }
+    
+    $InputObject
+  }
+}
+
+#endregion
 
 
 
@@ -828,82 +863,108 @@ Process {
     $Before       = $Page.Wikitext
 
     # Save game cloud syncing: iCloud
-    if (-not ($Page.Wikitext.Contains("|icloud notes")))
-    {
-      if ($Page.Wikitext -match '\|steam cloud\s*=(.+)\n')
-      {
-        # $Matches[0] holds the full match
-        # $Matches[1] holds the capture group
-        $Insertion = "|icloud                    = `n|icloud notes              = `n"
-        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
-        $Matches = $null
-      }
+    $AddMissingTemplateParam = @{
+      DetectionString = "|icloud notes"
+      InsertionText   = "|icloud                    = `n|icloud notes              = `n"
+      PrependBefore   = "\|steam cloud\s*=(.+)\n"
     }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
 
     # Input: directinput prompts
-    if (-not ($Page.Wikitext.Contains("|directinput prompts")))
-    {
-      if ($Page.Wikitext -match '\|playstation controllers\s*=(.+)\n')
-      {
-        # $Matches[0] holds the full match
-        # $Matches[1] holds the capture group
-        $Insertion = "|directinput prompts           = `n|directinput prompts notes     = `n"
-        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
-        $Matches = $null
-      }
+    $AddMissingTemplateParam = @{
+      DetectionString = "|directinput prompts"
+      InsertionText   = "|directinput prompts           = `n|directinput prompts notes     = `n"
+      PrependBefore   = "\|playstation controllers\s*=(.+)\n"
     }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
 
     # Input: directinput controllers
-    if (-not ($Page.Wikitext.Contains("|directinput controllers")))
-    {
-      if ($Page.Wikitext -match '\|directinput prompts\s*=(.+)\n')
-      {
-        # $Matches[0] holds the full match
-        # $Matches[1] holds the capture group
-        $Insertion = "|directinput controllers       = `n|directinput controllers notes = `n"
-        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
-        $Matches = $null
-      }
+    $AddMissingTemplateParam = @{
+      DetectionString = "|directinput controllers"
+      InsertionText   = "|directinput controllers       = `n|directinput controllers notes = `n"
+      PrependBefore   = "\|directinput prompts\s*=(.+)\n"
     }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
 
     # Input: dualsense adaptive trigger support modes
-    if (-not ($Page.Wikitext.Contains("|dualsense adaptive trigger support modes")))
-    {
-      if ($Page.Wikitext -match '\|dualsense adaptive trigger support notes\s*=')
-      {
-        # $Matches[0] holds the full match
-        # $Matches[1] holds the capture group
-        $Insertion = "|dualsense adaptive trigger support modes = `n"
-        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
-        $Matches = $null
-      }
+    $AddMissingTemplateParam = @{
+      DetectionString = "|dualsense adaptive trigger support modes"
+      InsertionText   = "|dualsense adaptive trigger support modes = `n"
+      PrependBefore   = "\|dualsense adaptive trigger support notes\s*=(.+)\n"
     }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
 
     # Input: nintendo controllers
-    if (-not ($Page.Wikitext.Contains("|nintendo controllers")))
-    {
-      if ($Page.Wikitext -match '\|tracked motion controllers\s*=(.+)\n')
-      {
-        # $Matches[0] holds the full match
-        # $Matches[1] holds the capture group
-        $Insertion = "|nintendo controllers          = `n|nintendo controller models    = `n|nintendo controllers notes    = `n|nintendo prompts              = `n|nintendo prompts notes        = `n|nintendo button layout        = `n|nintendo button layout notes  = `n|nintendo motion sensors       = `n|nintendo motion sensors modes = `n|nintendo motion sensors notes = `n|nintendo connection modes     = `n|nintendo connection modes notes = `n"
-        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
-        $Matches = $null
-      }
+    $AddMissingTemplateParam = @{
+      DetectionString = "|nintendo controllers"
+      InsertionText   = "|nintendo controllers          = `n|nintendo controller models    = `n|nintendo controllers notes    = `n|nintendo prompts              = `n|nintendo prompts notes        = `n|nintendo button layout        = `n|nintendo button layout notes  = `n|nintendo motion sensors       = `n|nintendo motion sensors modes = `n|nintendo motion sensors notes = `n|nintendo connection modes     = `n|nintendo connection modes notes = `n"
+      PrependBefore   = "\|tracked motion controllers\s*=(.+)\n"
     }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
 
     # Input: peripheral devices
-    if (-not ($Page.Wikitext.Contains("|peripheral devices")))
-    {
-      if ($Page.Wikitext -match '\|other button prompts\s*=(.+)\n')
-      {
-        # $Matches[0] holds the full match
-        # $Matches[1] holds the capture group
-        $Insertion = "|peripheral devices            = `n|peripheral device types       = `n|peripheral devices notes      = `n"
-        $Page.Wikitext = $Page.Wikitext.Replace($Matches[0], $Insertion + $Matches[0])
-        $Matches = $null
-      }
+    $AddMissingTemplateParam = @{
+      DetectionString = "|peripheral devices"
+      InsertionText   = "|peripheral devices            = `n|peripheral device types       = `n|peripheral devices notes      = `n"
+      PrependBefore   = "\|other button prompts\s*=(.+)\n"
     }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
+
+    # Input: input prompt override
+    $AddMissingTemplateParam = @{
+      DetectionString = "|input prompt override"
+      InsertionText   = "|input prompt override         = `n|input prompt override notes   = `n"
+      PrependBefore   = "\|haptic feedback\s*=(.+)\n"
+    }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
+
+    # Input: digital movement supported
+    $AddMissingTemplateParam = @{
+      DetectionString = "|digital movement supported"
+      InsertionText   = "|digital movement supported    = `n|digital movement supported notes = `n"
+      PrependBefore   = "\|simultaneous input\s*=(.+)\n"
+    }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
+
+    # Input: haptic feedback hd
+    $AddMissingTemplateParam = @{
+      DetectionString = "|haptic feedback hd"
+      InsertionText   = "|haptic feedback hd            = `n|haptic feedback hd notes      = `n|haptic feedback hd controller models = `n"
+      PrependBefore   = "\|digital movement supported\s*=(.+)\n"
+    }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
+
+    # Input: steam input presets
+    $AddMissingTemplateParam = @{
+      DetectionString = "|steam input presets"
+      InsertionText   = "|steam input presets           = `n|steam input presets notes     = `n"
+      PrependBefore   = "\|steam cursor detection\s*=(.+)\n"
+    }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
+
+    # Input: steam input motion sensors
+    $AddMissingTemplateParam = @{
+      DetectionString = "|steam input motion sensors"
+      InsertionText   = "|steam input motion sensors    = `n|steam input motion sensors modes = `n|steam input motion sensors notes = `n"
+      PrependBefore   = "\|steam input presets\s*=(.+)\n"
+    }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
+
+    # Input: steam deck prompts
+    $AddMissingTemplateParam = @{
+      DetectionString = "|steam deck prompts"
+      InsertionText   = "|steam deck prompts            = `n|steam deck prompts notes      = `n"
+      PrependBefore   = "\|steam controller prompts\s*=(.+)\n"
+    }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
+
+    # Input: steam input prompts
+    $AddMissingTemplateParam = @{
+      DetectionString = "|steam input prompts"
+      InsertionText   = "|steam input prompts           = `n|steam input prompts icons     = `n|steam input prompts styles    = `n|steam input prompts notes     = `n"
+      PrependBefore   = "\|steam deck prompts\s*=(.+)\n"
+    }
+    $Page.Wikitext = $Page.Wikitext | Add-MissingTemplateParameters @AddMissingTemplateParam
 
     if ($Before -cne $Page.Wikitext)
     {
