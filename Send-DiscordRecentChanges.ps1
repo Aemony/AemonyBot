@@ -1,8 +1,8 @@
 [CmdletBinding()]
 Param (
-  [string]$ResultSize = 100,
   [Alias("Limit")]
-  $ExcludeUser        = 'AemonyBot',
+  [string]$ResultSize = 100,
+  $ExcludeUser        = '',
   $Namespace          = @(
     '' # Main namespace
     'Company'
@@ -14,8 +14,13 @@ Param (
     'Series'
     'Store'
   ),
+  $Type               = @('edit', 'new'),
+  $Properties         = @('comment', 'flags', 'ids', 'loginfo', 'parsedcomment', 'tags', 'timestamp', 'title', 'user', 'userid', 'sizes'),
+  $Filter             = @(''),
 
   $HookUrl            = '',
+
+  $CacheFileName     = '', # discord_rc.json
 
   $Start              = $null, # Timestamp from where to start # (Get-Date).AddMinutes(-5)
 
@@ -38,7 +43,10 @@ Start-Transcript "$ScriptName.log" | Out-Null
 Write-Verbose "Transcript started, output file is $ScriptName.log"
 
 # Script variable to indicate the location of the local cache
-$script:CacheFilePath = $env:LOCALAPPDATA + '\PowerShell\PCGWMaintenanceBot\discord_rc.json'
+$script:CacheFilePath = $null
+if (-not [string]::IsNullOrWhiteSpace($CacheFileName)) {
+  $script:CacheFilePath = $env:LOCALAPPDATA + '\PowerShell\PCGWMaintenanceBot\' + $CacheFileName
+}
 
 # Global configurations
 $script:EnablePage         = 'User:AemonyBot/DiscordEnabled' # Page to check between each processed page to see if the bot should continue or not.
@@ -52,39 +60,42 @@ $Cache     = [ordered]@{
 }
 
 # Reset the cache
-If ($Reset)
+if ($script:CacheFilePath)
 {
-  If ((Test-Path $script:CacheFilePath) -eq $true)
-  { Remove-Item $script:CacheFilePath }
-}
-
-
-# Read the persistent cache
-if ((Test-Path $script:CacheFilePath) -eq $true)
-{
-  Write-Warning "Using data from last successful run. Use -Reset to recreate or bypass the stored data."
-  Try
+  If ($Reset)
   {
-    # Try to load the cache.
-    $CacheTemp = Get-Content $script:CacheFilePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-    $Cache     = $CacheTemp
+    If ((Test-Path $script:CacheFilePath) -eq $true)
+    { Remove-Item $script:CacheFilePath }
   }
-  Catch [System.Management.Automation.ItemNotFoundException], [System.ArgumentException] {
-    # Handle corrupt cache
-    Write-Warning "The local cache could not be found or was corrupt.`n"
-    $CacheTemp = $null
-  }
-  Catch
-  {
-    # Unknown exception
-    Write-Warning "Unknown error occurred when trying to read the local cache."
-    $CacheTemp = $null
-  }
-}
 
-# Create the persistent cache using New-Item with -Force parameter so missing directories are also created.
-else
-{ New-Item -Path $script:CacheFilePath -ItemType "file" -Force | Out-Null }
+
+  # Read the persistent cache
+  if ((Test-Path $script:CacheFilePath) -eq $true)
+  {
+    Write-Warning "Using data from last successful run. Use -Reset to recreate or bypass the stored data."
+    Try
+    {
+      # Try to load the cache.
+      $CacheTemp = Get-Content $script:CacheFilePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+      $Cache     = $CacheTemp
+    }
+    Catch [System.Management.Automation.ItemNotFoundException], [System.ArgumentException] {
+      # Handle corrupt cache
+      Write-Warning "The local cache could not be found or was corrupt.`n"
+      $CacheTemp = $null
+    }
+    Catch
+    {
+      # Unknown exception
+      Write-Warning "Unknown error occurred when trying to read the local cache."
+      $CacheTemp = $null
+    }
+  }
+
+  # Create the persistent cache using New-Item with -Force parameter so missing directories are also created.
+  else
+  { New-Item -Path $script:CacheFilePath -ItemType "file" -Force | Out-Null }
+}
 
 If ([string]::IsNullOrEmpty($Start) -eq $false)
 { $Cache.Timestamp = $Start }
@@ -120,9 +131,9 @@ if ($Force -or $Status.Wikitext -eq '1')
     ExcludeUser    = $ExcludeUser
     ResultSize     = $ResultSize
     Namespace      = $Namespace
-    Type           = @('edit', 'new')
-    Properties     = @('comment', 'flags', 'ids', 'loginfo', 'parsedcomment', 'tags', 'timestamp', 'title', 'user', 'userid', 'sizes')
-    Filter         = @('!bot')
+    Type           = $Type
+    Properties     = $Properties
+    Filter         = $Filter
   }
 
   if (-not $Descending)
@@ -232,7 +243,9 @@ if ($Force -or $Status.Wikitext -eq '1')
 
     # Update the local cache after each page so we can abort at any moment without losing progress
     # Only cache the RecentChangesID and Timestamp values
-    $Cache | Select-Object RecentChangesID, Timestamp | ConvertTo-Json | Out-File $script:CacheFilePath
+    if ($script:CacheFilePath) {
+      $Cache | Select-Object RecentChangesID, Timestamp | ConvertTo-Json | Out-File $script:CacheFilePath
+    }
   }
 
   if ($HookUrl -and (-not [string]::IsNullOrWhiteSpace($Body.content)))
