@@ -1003,9 +1003,16 @@ function Add-MissingTemplateParameters
     }
 
     # Add references section on pages that lacks it...
-    if (-not ($Page.Wikitext.Contains('{{References}}')))
+    if (-not ($Page.Wikitext.Contains('{{References}}')) -and
+             ($Page.Wikitext.Contains('<ref>')))
     {
-      $Page.Wikitext = $Page.Wikitext + "`n`n{{References}}"
+        # But only if it doesn't expect any transclusion!
+        if (-not ($Page.Wikitext.Contains('<noinclude>'))   -and
+            -not ($Page.Wikitext.Contains('<includeonly>')) -and
+            -not ($Page.Wikitext.Contains('<onlyinclude>')))
+        {
+          $Page.Wikitext = $Page.Wikitext + "`n`n{{References}}"
+        }
     }
 
     # Convert some external links into external ones:
