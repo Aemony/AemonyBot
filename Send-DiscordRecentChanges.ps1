@@ -172,7 +172,7 @@ if ($Force -or $Status.Wikitext -eq '1')
     $UserPage    = "https://www.pcgamingwiki.com/wiki/User:$UsernameURI"
     $UserTalk    = "https://www.pcgamingwiki.com/wiki/User_talk:$UsernameURI"
     $ContribLink = 'https://www.pcgamingwiki.com/wiki/Special:Contributions/'
-    $UserContr   = "$ContribLink$UsernameURI>"
+    $UserContr   = "$ContribLink$UsernameURI"
     $UnixSeconds = ([DateTimeOffset]$Change.Timestamp).ToUnixTimeSeconds()
     $Comment     = $Change.Comment
 
