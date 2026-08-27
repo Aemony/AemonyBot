@@ -404,7 +404,8 @@ function Add-MissingTemplateParameters
   # Extract the namespace name from the page name
   $Page | Add-Member -MemberType NoteProperty -Name 'Namespace' -Value (Get-MWNamespace -PageName $Page.Name).Name
 
-  if ($null -ne $Page.Wikitext)
+  # If page has content AND page is not a Redirect page
+  if ($null -ne $Page.Wikitext -and -not ($Page.Wikitext.Contains('#REDIRECT')))
   {
     $OriginalContent     = $null
     $OriginalContent     = $Page.Wikitext
@@ -1001,14 +1002,10 @@ function Add-MissingTemplateParameters
       $Page.Wikitext = $Page.Wikitext -replace "\[\[:Category:([0-9a-zA-Z\-\/ \(\)_']+)\|[0-9a-zA-Z\-\/ \(\)_']+\]\]", '{{Glossary:$1}}'
     }
 
-    # If not on a redirect papge
-    if (-not ($Page.Wikitext.Contains('#REDIRECT')))
+    # Add references section on pages that lacks it...
+    if (-not ($Page.Wikitext.Contains('{{References}}')))
     {
-      # Add references section on pages that lacks it...
-      if (-not ($Page.Wikitext.Contains('{{References}}')))
-      {
-        $Page.Wikitext = $Page.Wikitext + "`n`n{{References}}"
-      }
+      $Page.Wikitext = $Page.Wikitext + "`n`n{{References}}"
     }
 
     # Convert some external links into external ones:
