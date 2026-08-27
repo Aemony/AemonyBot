@@ -610,7 +610,7 @@ function Add-MissingTemplateParameters
       # Only do on articles in the main namespace
 
       # Requires retrieving the date through the Cargo backend (admittedly easier than trying to parse it manually)
-      $ReleaseDate = Get-MWCargoQuery -Table Infobox_game -Field 'Released' -Where ('_pageID = ' + $Page.ID) -Limit 1
+      $ReleaseDate = Get-MWCargoQuery -Table Game -Field 'Released' -Where ('_pageID = ' + $Page.ID) -Limit 1
 
       if (-not ([string]::IsNullOrEmpty($ReleaseDate.Released)))
       {
@@ -999,6 +999,12 @@ function Add-MissingTemplateParameters
     if (-not ($Page.Wikitext.Contains('[[:Category:Lists of ')))
     {
       $Page.Wikitext = $Page.Wikitext -replace "\[\[:Category:([0-9a-zA-Z\-\/ \(\)_']+)\|[0-9a-zA-Z\-\/ \(\)_']+\]\]", '{{Glossary:$1}}'
+    }
+
+    # Add references section on pages that lacks it...
+    if (-not ($Page.Wikitext.Contains('{{References}}')))
+    {
+      $Page.Wikitext = $Page.Wikitext + "`n`n{{References}}"
     }
 
     # Convert some external links into external ones:
