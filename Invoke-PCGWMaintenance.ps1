@@ -1001,10 +1001,14 @@ function Add-MissingTemplateParameters
       $Page.Wikitext = $Page.Wikitext -replace "\[\[:Category:([0-9a-zA-Z\-\/ \(\)_']+)\|[0-9a-zA-Z\-\/ \(\)_']+\]\]", '{{Glossary:$1}}'
     }
 
-    # Add references section on pages that lacks it...
-    if (-not ($Page.Wikitext.Contains('{{References}}')))
+    # If not on a redirect papge
+    if (-not ($Page.Wikitext.Contains('#REDIRECT')))
     {
-      $Page.Wikitext = $Page.Wikitext + "`n`n{{References}}"
+      # Add references section on pages that lacks it...
+      if (-not ($Page.Wikitext.Contains('{{References}}')))
+      {
+        $Page.Wikitext = $Page.Wikitext + "`n`n{{References}}"
+      }
     }
 
     # Convert some external links into external ones:
