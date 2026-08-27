@@ -172,7 +172,7 @@ if ($Force -or $Status.Wikitext -eq '1')
     $UserPage    = "https://www.pcgamingwiki.com/wiki/User:$UsernameURI"
     $UserTalk    = "https://www.pcgamingwiki.com/wiki/User_talk:$UsernameURI"
     $ContribLink = 'https://www.pcgamingwiki.com/wiki/Special:Contributions/'
-    $UserContr   = "$ContribLink$UsernameURI"
+    $UserContr   = "$ContribLink$UsernameURI>"
     $UnixSeconds = ([DateTimeOffset]$Change.Timestamp).ToUnixTimeSeconds()
     $Comment     = $Change.Comment
 
@@ -198,7 +198,7 @@ if ($Force -or $Status.Wikitext -eq '1')
 
     $NewContent += '` '
 
-    $NewContent += "<t:$UnixSeconds> . . **[$PageName]($PageLink)** ([diff]($DiffLink) | [history]($HistoryLink)) . . **$DiffSize** . . **[$Username]($UserPage)** ([talk]($UserTalk) | [contribs]($UserContr))"
+    $NewContent += "<t:$UnixSeconds> . . **[$PageName](<$PageLink>)** ([diff](<$DiffLink>) | [history](<$HistoryLink>)) . . **$DiffSize** . . **[$Username](<$UserPage>)** ([talk](<$UserTalk>) | [contribs](<$UserContr>))"
 
     if (-not [string]::IsNullOrWhiteSpace($Comment))
     {
@@ -208,14 +208,14 @@ if ($Force -or $Status.Wikitext -eq '1')
       # [[$1|$2]] -> [$2](https://www.pcgamingwiki.com/wiki/$1)
       while ($Comment -Match '\[\[([^\[\|\]]*?)\|([^\[\|\]]*?)\]\]')
       {
-        $NewString = "[$($Matches[2])](https://www.pcgamingwiki.com/wiki/$($Matches[1].Replace(' ', '_')))"
+        $NewString = "[$($Matches[2])](<https://www.pcgamingwiki.com/wiki/$($Matches[1].Replace(' ', '_'))>)"
         $Comment = $Comment.Replace($Matches[0], $NewString)
       }
 
       # [[$1]] -> [$1](https://www.pcgamingwiki.com/wiki/$1)
       while ($Comment -Match '\[\[([^\[\|\]]*?)\]\]')
       {
-        $NewString = "[$($Matches[1])](https://www.pcgamingwiki.com/wiki/$($Matches[1].Replace(' ', '_')))"
+        $NewString = "[$($Matches[1])](<https://www.pcgamingwiki.com/wiki/$($Matches[1].Replace(' ', '_'))>)"
         $Comment = $Comment.Replace($Matches[0], $NewString)
       }
       

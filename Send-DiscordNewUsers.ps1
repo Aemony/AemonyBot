@@ -127,7 +127,7 @@ if ($Force -or $Status.Wikitext -eq '1')
     $UserBlock   = "https://www.pcgamingwiki.com/wiki/Special:Block/$UsernameURI"
     $UnixSeconds = ([DateTimeOffset]$User.Timestamp).ToUnixTimeSeconds()
 
-    $NewContent  = "<t:$UnixSeconds> . . **[$Username]($UserPage)** ([talk]($UserTalk) | [contribs]($UserContr) | [block]($UserBlock)) was created."
+    $NewContent  = "<t:$UnixSeconds> . . **[$Username](<$UserPage>)** ([talk](<$UserTalk>) | [contribs](<$UserContr>) | [block](<$UserBlock>)) was created."
 
     if (($Body.content.Length + $NewContent.Length) -ge 2000)
     {

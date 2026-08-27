@@ -114,7 +114,7 @@ try
       $Title = ($Entry.title).Replace('Service','').Replace(' seems to be down','')
       $Link  = $Entry.link.href
 
-      $NewContent  = "<t:$UnixSeconds> . . **[$Title]($Link)** - "
+      $NewContent  = "<t:$UnixSeconds> . . **[$Title](<$Link>)** - "
 
       if ($IsServiceDown)
       {
