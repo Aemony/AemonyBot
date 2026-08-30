@@ -1245,6 +1245,13 @@ function Add-MissingTemplateParameters
       $Page.Wikitext = $Page.Wikitext -replace "\[\[:Category:([0-9a-zA-Z\-\/ \(\)_']+)\|[0-9a-zA-Z\-\/ \(\)_']+\]\]", '{{Glossary:$1}}'
     }
 
+    <#
+    foreach ($Category in $TaxonomyCategories)
+    {
+      $Page.Wikitext = $Page.Wikitext.Replace("[[:$Category|", ("{{" + $Category.Replace('Category:', 'Glossary:')) + "}}")
+    }
+    #>
+
     # Add references section on pages that lacks it...
     if (-not ($Page.Wikitext.Contains('{{References}}')) -and
              ($Page.Wikitext.Contains('<ref>')))
