@@ -13,6 +13,7 @@ Param (
     'Guide'
     'Series'
     'Store'
+    'File'
   ),
   $Type               = @('edit', 'new'),
   $Properties         = @('comment', 'flags', 'ids', 'loginfo', 'parsedcomment', 'tags', 'timestamp', 'title', 'user', 'userid', 'sizes'),
@@ -20,9 +21,11 @@ Param (
 
   $HookUrl            = '',
 
-  $CacheFileName     = '', # discord_rc.json
+  $CacheFileName      = '', # discord_rc.json
 
   $Start              = $null, # Timestamp from where to start # (Get-Date).AddMinutes(-5)
+
+  [switch]$NewcomersOnly,     # Used to exclude all regular editors
 
   [switch]$Descending,        # defaults to using an ascending order
   [switch]$Force,             # Forces the bot to run regardless of the status of the public toggle
@@ -51,6 +54,10 @@ if (-not [string]::IsNullOrWhiteSpace($CacheFileName)) {
 # Global configurations
 $script:EnablePage         = 'User:AemonyBot/DiscordEnabled' # Page to check between each processed page to see if the bot should continue or not.
 $script:ProgressPreference = 'SilentlyContinue'              # Suppress progress bar (speeds up Invoke-WebRequest by a ton)
+
+# Newcomer values
+$wgLearnerEdits       = 100 # edits (default 10)
+$wgLearnerMemberSince = 14  # days  (default  4)
 
 $CacheTemp = $null
 $Cache     = [ordered]@{
@@ -97,15 +104,34 @@ if ($script:CacheFilePath)
   { New-Item -Path $script:CacheFilePath -ItemType "file" -Force | Out-Null }
 }
 
+# Need to declare this again in case trying to read the cache invalidated the object...
+if ($null -eq $Cache)
+{
+  $Cache     = [ordered]@{
+    RecentChangesID = 0  # Used to keep track of last processed change ID
+    Timestamp       = '' # If used as 'rcstart' with -Ascending ('rcdir: newer'), this can be used to continue where the bot last left
+    Output          = @()
+  }
+}
+
+# Need to declare this again in case reading the cache overwrote it...
+if ($null -eq $Cache.Timestamp)
+{
+  $Cache | Add-Member -MemberType NoteProperty -Name Timestamp -Value ''  
+}
+
+# Need to declare this again in case reading the cache overwrote it...
+if ($null -eq $Cache.Output)
+{
+  $Cache | Add-Member -MemberType NoteProperty -Name Output    -Value @()
+}
+
 If ([string]::IsNullOrEmpty($Start) -eq $false)
 { $Cache.Timestamp = $Start }
 
 # If -Start is not used and we have no cached timestamp, default to the last 30 minutes
 If ([string]::IsNullOrEmpty($Cache.Timestamp))
-{ $Cache.Timestamp = Get-Date ((Get-Date).AddMinutes(-30).ToUniversalTime()) -UFormat '+%Y-%m-%dT%H:%M:%SZ' }
-
-# Need to declare this again in case reading the cache overwrote it...
-$Cache | Add-Member -MemberType NoteProperty -Name Output -Value @()
+{ $Cache.Timestamp = Get-Date ((Get-Date).AddMinutes(-300).ToUniversalTime()) -UFormat '+%Y-%m-%dT%H:%M:%SZ' }
 
 $Module  = $false
 $Session = $false
@@ -159,6 +185,17 @@ if ($Force -or $Status.Wikitext -eq '1')
   {
     if ($Change.RecentChangesID -eq $Cache.RecentChangesID)
     { continue }
+
+    if ($NewcomersOnly)
+    {
+      $WikiAccount = Get-MWUser -ID $Change.UserID -Properties EditCount, Registration
+      $Newcomer = $false
+      $Newcomer =                          ($WikiAccount.EditCount    -lt $wgLearnerEdits)
+      $Newcomer = ($Newcomer -or ([datetime]$WikiAccount.Registration -gt (Get-Date).AddDays(0-$wgLearnerMemberSince)))
+
+      if (-not $Newcomer)
+      { continue }
+    }
 
     $RevisionID  = $Change.RevisionID
     $PreviousID  = $Change.PreviousID
