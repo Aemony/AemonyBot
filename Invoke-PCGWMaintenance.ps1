@@ -1218,6 +1218,72 @@ function Add-MissingTemplateParameters
     }
 #endregion
 
+#region 64-bit
+    $Before       = $Page.Wikitext
+    
+    # Clean up manual 64-bit OS required note
+    $SysReqOSName = ($Page.Wikitext | Select-String "\|OSFamily(\s*)=(\s*)(.*)" -AllMatches).Matches # .Matches[i].Groups[1] contains the OS family
+    $SysReqNotes  = ($Page.Wikitext | Select-String "\|notes(\s*)?=(\s*)({{ii}} A 64-bit operating system is required\.)" -AllMatches).Matches
+
+    $64NoteRemovals     = 0 # How many times have we removed the note? (used to adjust cached Index positions)
+    $64NoteContentBlock = '{{ii}} A 64-bit operating system is required.'
+    $APIParametersToFix = @()
+
+    # This loops through all found matches and fixes their API section
+    foreach ($Note in $SysReqNotes)
+    {
+      $Index = $SysReqOSName | Where { $_.Index -lt $Note.Index } # Find all OS names listed before the note
+
+      # If we found something... (which we always should!)
+      if ($Index)
+      {
+        $LastMatch = $Index # Assume we only found one
+        if ($Index.Count -gt 1)
+        {
+          $LastMatch = $Index[-1] # Select the very last one if multiple matches were found
+        }
+
+        # Flag their API sections to be fixed later
+        $APIParametersToFix += $LastMatch.Value
+
+        # Need to do this before touching the API sections since the API replacements moves the index/position around!!!
+        $Position      = ((($Note.Groups | where Value -eq $64NoteContentBlock).Index) - ($64NoteContentBlock.Length * $64NoteRemovals)) # Keep track of how much we've removed it
+        $Page.Wikitext = $Page.Wikitext.Remove($Position, $64NoteContentBlock.Length)
+        $64NoteRemovals++
+      }
+    }
+
+    # Ensure API section is properly filled out
+    # Only set the executable flags if empty or set to unknown
+    # See for example Rebel Cops which only defined 64-bit Steam depots which themselves carried a 32-bit executable
+    foreach ($OSFamily in $APIParametersToFix)
+    {
+      if ($OSFamily -like "*Windows*")
+      {
+        $Page.Wikitext = $Page.Wikitext -replace '\|windows 32-bit exe(\s*)=(\s*)(|unknown)?\n', "|windows 32-bit exe`$1=`$2false`n"
+        $Page.Wikitext = $Page.Wikitext -replace '\|windows 64-bit exe(\s*)=(\s*)(|unknown)?\n', "|windows 64-bit exe`$1=`$2true`n"
+      }
+
+      elseif ($OSFamily -like "*OS X*")
+      {
+        $Page.Wikitext = $Page.Wikitext -replace '\|macos intel 32-bit app(\s*)=(\s*)(|unknown)?\n', "|macos intel 32-bit app`$1=`$2false`n"
+        $Page.Wikitext = $Page.Wikitext -replace '\|macos intel 64-bit app(\s*)=(\s*)(|unknown)?\n', "|macos intel 64-bit app`$1=`$2true`n"
+      }
+
+      elseif ($OSFamily -like "*Linux*")
+      {
+        $Page.Wikitext = $Page.Wikitext -replace '\|linux 32-bit executable(\s*)=(\s*)(|unknown)?\n', "|linux 32-bit executable`$1=`$2false`n"
+        $Page.Wikitext = $Page.Wikitext -replace '\|linux 64-bit executable(\s*)=(\s*)(|unknown)?\n', "|linux 64-bit executable`$1=`$2true`n"
+      }
+    }
+
+    if ($Before -cne $Page.Wikitext)
+    {
+      $Summary += ' -x64note'
+    }
+
+#endregion
+
 #region Misc
     $Before       = $Page.Wikitext
 
@@ -1253,8 +1319,8 @@ function Add-MissingTemplateParameters
     #>
 
     # Add references section on pages that lacks it...
-    if (-not ($Page.Wikitext.Contains('{{References}}')) -and
-             ($Page.Wikitext.Contains('<ref>')))
+    if (($Page.Wikitext -NotLike '*{{References}}*') -and
+        ($Page.Wikitext.Contains('<ref>')))
     {
         # But only if it doesn't expect any transclusion!
         if (-not ($Page.Wikitext.Contains('<noinclude>'))   -and
