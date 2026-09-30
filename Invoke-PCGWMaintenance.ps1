@@ -1318,6 +1318,9 @@ function Add-MissingTemplateParameters
     }
     #>
 
+    # Capitalize {{references}} into {{References}}
+    $Page.Wikitext = $Page.Wikitext.Replace('{{references}}', '{{References}}')
+
     # Add references section on pages that lacks it...
     if (($Page.Wikitext -NotLike '*{{References}}*') -and
         ($Page.Wikitext.Contains('<ref>')))
